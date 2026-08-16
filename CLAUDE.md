@@ -76,6 +76,7 @@ ai-hub/
 │   │   │   ├── ollama/
 │   │   │   ├── openai-compatible/   # Claude / GPT / Gemini / Grok / NVIDIA build 共用介面
 │   │   ├── storage/            # SQLite + 附件檔案儲存
+│   │   ├── channel/            # 外部通訊平台 adapter（whatsapp/messenger/wecom，Phase 8）
 │   │   └── marketplace/        # 插件市場：manifest、動態啟停
 │   └── web/                   # React/Vite 前端
 └── .github/workflows/         # CI（分階段擴充）
@@ -85,21 +86,27 @@ ai-hub/
 
 ## 4. 開發階段（每階段結束：merge branch → 更新 CHANGELOG/todo.md → 寫 1 篇 MEM → 更新架構圖 → 跟你確認後才進下一階段）
 
-### Phase 0 — 環境與 Cordis 基礎
+### Phase 0 — 環境與 Cordis 基礎 ✅ 完成（2026-08-16，`phase-0-complete` tag）
 **學習重點：** 讀完 dsh 的 `cordis-tutorial`（01-first-plugin → 03-services），理解 plugin / service / inject / event。
-**交付物：** pnpm monorepo 骨架、`cordis.yml`、一個「hello plugin」跑起來、git 分支流程測試一輪。
+**交付物：** pnpm monorepo 骨架、一個「hello plugin」跑起來、git 分支流程測試一輪。
+**實際結果跟原計畫的差異：** 沒有用 `cordis.yml` + loader（延後到真的需要 config-driven 載入時再考慮，KISS）；
+`tsx` 因為 esbuild native binary 不支援 Big Sur 被整個移除，改用 Node 內建 TypeScript type-stripping
+（`node src/index.ts`，不用任何編譯/轉譯工具）。細節見 `error/ERR-20260816-*.md`。
 
-### Phase 1 — Plugin Kernel 骨架
-**學習重點：** 設計 service 邊界（`ctx.chat` / `ctx.agent` / `ctx.model` / `ctx.storage` 各自該暴露什麼介面）。
-**交付物：** 空殼 service + ADR「為何選 Cordis 而非自己刻 DI container」。
+### Phase 1 — Plugin Kernel 骨架 ✅ 完成（2026-08-16）
+**學習重點：** 設計 service 邊界（`ctx.chat` / `ctx.agent` / `ctx.model` / `ctx.storage` / `ctx.channel` 各自該暴露什麼介面）。
+**交付物：** 五個空殼 service（`ctx.channel` 是新增的第五個，見下方「多通訊平台閘道」）+ `ADR-0001`（為何選 Cordis）+ `ADR-0002`（為何預留 channel）。
+`ctx.model` / `ctx.channel` 是唯二已經是「真的能用」的 registry（`register/get/list`），其他三個目前是純空殼，等對應階段補實作。
 
 ### Phase 2 — Domain 層（TDD）
 **學習重點：** Room / Message / Agent / SandboxPolicy 的核心規則（例如「這個 Agent 能不能看到其他聊天室」）用純函式先寫測試再實作。
 **交付物：** domain 單元測試（無 I/O），涵蓋 sandbox 可見性、Agent 指派邏輯。
+**別忘記（來自 ADR-0002）：** Message 要能標記 `sourceChannel`（哪個外部平台來的，或 null 代表 Web UI 自己發的），
+現在設計時就把這個欄位放進去，不要等 Phase 8 再回頭改。
 
 ### Phase 3 — Model Provider Plugins
 **學習重點：** 用同一個 `ModelProvider` 介面，分別接 Ollama（本地）、OpenAI-相容端點（Claude/GPT/Gemini/Grok 大多有相容層或各自 SDK）、NVIDIA build.nvidia.com API。
-**交付物：** 每家一個 Cordis plugin，`inject: ['model']`，可插拔切換，附整合測試（mock HTTP）。
+**交付物：** 每家一個 Cordis plugin，`inject: ['model']`，呼叫 `ctx.model.register(...)`，可插拔切換，附整合測試（mock HTTP）。
 
 ### Phase 4 — 持久化與附件
 **學習重點：** SQLite schema 設計（rooms/messages/agents/attachments）、檔案上傳（先存本地磁碟，之後再談雲端）。
@@ -111,15 +118,27 @@ ai-hub/
 
 ### Phase 6 — API + 聊天 UI MVP
 **學習重點：** REST + WebSocket，前端用 React/Vite 做出類 WhatsApp 的群組介面（房間列表、選 Agent 看歷史）。
-**交付物：** 可用的 Web UI，能開房間、選模型建 Agent、收發訊息。
+**交付物：** 可用的 Web UI，能開房間、選模型建 Agent、收發訊息。此階段也要生出一個 `ctx.api`（HTTP router）
+service，Phase 8 的 channel adapter 會需要它來註冊 webhook route。
 
 ### Phase 7 — 插件市場
 **學習重點：** 插件 manifest 格式、執行期動態啟停（正是 Cordis「可逆掛載」的用武之地）、sandbox 開關的 UI 化。
 **交付物：** 一個範例第三方插件（例如 code-review skill）能透過市場安裝/移除，不用重啟服務。
 
-### Phase 8 — 安全、可觀測性、國際化、CI 收尾
-**學習重點：** 把 4.3 節機密管理規則落地（`.env.example`、Gitleaks CI）、結構化 log + trace-id、i18n（先做 zh-TW/en 兩語）、GitHub Actions（lint + unit test 必過，Gitleaks 必過，覆蓋率/Autocannon 壓測非強制擋 CI）。
+### Phase 8 — 外部通訊平台閘道（WhatsApp / Messenger / 企業微信）【新增】
+**學習重點：** Webhook 收（驗簽 + 解析各平台不同的 payload 格式）+ REST API 送是三個平台共通的架構；
+差異在配額/視窗限制（WhatsApp tier 配額 + Template 訊息、Messenger 24h 窗口 + Message Tag）跟身分模型
+（WeCom 走官方 OAuth callback，個人 WeChat **不做**，理由見 `ADR-0002`）。本機開發需要 ngrok /
+Cloudflare Tunnel 之類的工具讓 Meta/企業微信能連到你的 webhook。
+**交付物：** 三個 `ChannelAdapter` plugin（`whatsapp` / `messenger` / `wecom`），各自能收發一則測試訊息；
+`ExternalIdentity` 對應表把外部使用者跟內部 Room 綁起來。
+
+### Phase 9 — 安全、可觀測性、國際化、CI 收尾
+**學習重點：** 把 4.3 節機密管理規則落地（`.env.example`、Gitleaks CI，這時候 `.env` 會真的有 WhatsApp/Messenger
+的 App Secret、企業微信的 Token/AESKey，是機密掃描規則第一次真正派上用場的階段）、結構化 log + trace-id、
+i18n（先做 zh-TW/en 兩語）、GitHub Actions（lint + unit test 必過，Gitleaks 必過，覆蓋率/Autocannon 壓測非強制擋 CI）。
 **交付物：** 完整 CI pipeline、README 補完、輕量壓測報告。
+
 
 ---
 
