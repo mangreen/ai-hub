@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch src/index.ts",
     "start": "node src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-test-coverage \"src/**/*.test.ts\""
   },
   "keywords": [],
   "author": "",
