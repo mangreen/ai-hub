@@ -98,11 +98,13 @@ ai-hub/
 **交付物：** 五個空殼 service（`ctx.channel` 是新增的第五個，見下方「多通訊平台閘道」）+ `ADR-0001`（為何選 Cordis）+ `ADR-0002`（為何預留 channel）。
 `ctx.model` / `ctx.channel` 是唯二已經是「真的能用」的 registry（`register/get/list`），其他三個目前是純空殼，等對應階段補實作。
 
-### Phase 2 — Domain 層（TDD）
+### Phase 2 — Domain 層（TDD）✅ 完成（2026-08-16）
 **學習重點：** Room / Message / Agent / SandboxPolicy 的核心規則（例如「這個 Agent 能不能看到其他聊天室」）用純函式先寫測試再實作。
 **交付物：** domain 單元測試（無 I/O），涵蓋 sandbox 可見性、Agent 指派邏輯。
 **別忘記（來自 ADR-0002）：** Message 要能標記 `sourceChannel`（哪個外部平台來的，或 null 代表 Web UI 自己發的），
 現在設計時就把這個欄位放進去，不要等 Phase 8 再回頭改。
+**實際結果：** `src/plugins/chat/domain.ts` + `src/plugins/agent/domain.ts`，27 個測試全過，100% coverage。
+測試工具用 Node 內建 `node:test`（不是 vitest——理由跟 Phase 0 的 esbuild 坑一致，見 MEM-20260816-phase2）。
 
 ### Phase 3 — Model Provider Plugins
 **學習重點：** 用同一個 `ModelProvider` 介面，分別接 Ollama（本地）、OpenAI-相容端點（Claude/GPT/Gemini/Grok 大多有相容層或各自 SDK）、NVIDIA build.nvidia.com API。

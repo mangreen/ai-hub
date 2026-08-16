@@ -2,23 +2,27 @@
 
 多 Agent 聊天協作平台 — 學習型開發專案。架構規範見 [`CLAUDE.md`](./CLAUDE.md)。
 
-## 目前狀態：Phase 1 — Plugin Kernel 骨架 ✅
+## 目前狀態：Phase 2 — Domain 層（TDD）✅
 
-五個 service 邊界已建立：`ctx.chat` / `ctx.agent` / `ctx.model` / `ctx.storage` / `ctx.channel`
-（`channel` 是新增的第五個，為未來 WhatsApp/Messenger/企業微信整合預留，見 `docs/adr/ADR-0002-channel-gateway.md`）。
-`model` 和 `channel` 已經是可用的 registry；其餘三個是空殼，等對應階段補實作。
+`src/plugins/chat/domain.ts`、`src/plugins/agent/domain.ts`：Room/Message/Agent/TaskAssignment
+的純函式邏輯 + sandbox 可見性規則，27 個測試、100% coverage，測試工具用 Node 內建 `node:test`
+（不用 vitest，理由跟 esbuild/Big Sur 那個坑一致，見 `memory/MEM-20260816-phase2-domain-and-testing.md`）。
+
+五個 service 邊界（Phase 1）：`ctx.chat` / `ctx.agent` / `ctx.model` / `ctx.storage` / `ctx.channel`
+（`channel` 為未來 WhatsApp/Messenger/企業微信整合預留，見 `docs/adr/ADR-0002-channel-gateway.md`）。
 
 - Plugin kernel：[`cordis`](https://github.com/cordiverse/cordis)
-- Runtime：Node.js 內建 TypeScript type-stripping 直接執行 `.ts`，無編譯步驟、無 esbuild 依賴
-  （原本用 `tsx`，但其依賴的 `esbuild` native binary 不支援 macOS Big Sur，見 `error/ERR-20260816-esbuild-bigsur-incompatible.md`）
+- Runtime：Node.js 內建 TypeScript type-stripping，無編譯步驟、無 esbuild 依賴
+- 測試：Node 內建 `node:test`，同樣無 native binary 依賴
 - Package manager：pnpm
 
 ## 快速開始
 
 ```bash
 pnpm install
-pnpm start        # 跑 Phase 1 kernel，掛載五個 service（node src/index.ts）
-pnpm dev          # watch 模式（node --watch src/index.ts）
+pnpm start        # 跑 kernel，掛載五個 service（node src/index.ts）
+pnpm dev          # watch 模式
+pnpm test         # 跑 domain 單元測試 + coverage report
 pnpm typecheck    # 靜態型別檢查
 ```
 
@@ -31,11 +35,14 @@ model providers registered: []
 channel adapters registered: []
 ```
 
-## Phase 0 的「hello plugin」範例
+`pnpm test` 預期看到 `# pass 27` `# fail 0`，coverage report 顯示兩個 `domain.ts` 都 100%。
 
-`src/plugins/greeter.ts` / `consumer.ts` / `event-demo.ts` — Service / inject / event 三個 Cordis 核心概念的最小範例，三種 Cordis plugins 寫法。
+## Domain 層（Phase 2）
 
-已刪除，可切換至 git 分支：`phase/0-environment-cordis-basics` 查看對照。
+| 檔案 | 涵蓋 |
+|---|---|
+| `src/plugins/chat/domain.ts` | `Room` / `Message` / sandbox 可見性規則（`canAgentViewRoom`） |
+| `src/plugins/agent/domain.ts` | `Agent` / `TaskAssignment`（Phase 5 多 Agent 協作的最小構件） |
 
 ## 已知的坑
 
