@@ -1,7 +1,12 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import { Context } from 'cordis'
-import { ModelService } from './index.ts'
+import { ModelService, type ModelProvider } from './index.ts'
+
+/** Minimal ModelProvider fixture — these tests only exercise the registry, never .complete(). */
+function fixture(name: string): ModelProvider {
+  return { name, complete: async () => ({ content: '', model: '' }) }
+}
 
 /**
  * Bridges Cordis's async plugin mounting into a single awaitable assertion
@@ -30,21 +35,21 @@ function withModelService(fn: (model: ModelService) => void | Promise<void>): Pr
 describe('ModelService.register', () => {
   test('should_list_registered_provider_when_registered', async () => {
     await withModelService((model) => {
-      model.register({ name: 'ollama' })
+      model.register(fixture('ollama'))
       assert.deepEqual(model.list(), ['ollama'])
     })
   })
 
   test('should_throw_when_registering_duplicate_name', async () => {
     await withModelService((model) => {
-      model.register({ name: 'ollama' })
-      assert.throws(() => model.register({ name: 'ollama' }))
+      model.register(fixture('ollama'))
+      assert.throws(() => model.register(fixture('ollama')))
     })
   })
 
   test('should_get_provider_by_name_when_registered', async () => {
     await withModelService((model) => {
-      const provider = { name: 'ollama' }
+      const provider = fixture('ollama')
       model.register(provider)
       assert.equal(model.get('ollama'), provider)
     })
@@ -58,7 +63,7 @@ describe('ModelService.register', () => {
 
   test('should_remove_provider_when_returned_disposer_is_called', async () => {
     await withModelService(async (model) => {
-      const dispose = model.register({ name: 'ollama' })
+      const dispose = model.register(fixture('ollama'))
       assert.deepEqual(model.list(), ['ollama'])
       await dispose()
       assert.deepEqual(model.list(), [])
@@ -67,9 +72,9 @@ describe('ModelService.register', () => {
 
   test('should_allow_reregistering_same_name_after_dispose', async () => {
     await withModelService(async (model) => {
-      const dispose = model.register({ name: 'ollama' })
+      const dispose = model.register(fixture('ollama'))
       await dispose()
-      assert.doesNotThrow(() => model.register({ name: 'ollama' }))
+      assert.doesNotThrow(() => model.register(fixture('ollama')))
     })
   })
 })

@@ -154,9 +154,24 @@ ai-hub/
 4. 從 skill 研究裡帶出一個真的要修的 bug：`register()` 沒辦法撤銷，用 TDD 補上
    （見 MEM-20260816-registrations-as-effects.md）。
 
-### Phase 3 — Model Provider Plugins
+### Phase 3 — Model Provider Plugins ✅ 完成（2026-08-17）
 **學習重點：** 用同一個 `ModelProvider` 介面，分別接 Ollama（本地）、OpenAI-相容端點（Claude/GPT/Gemini/Grok 大多有相容層或各自 SDK）、NVIDIA build.nvidia.com API。
 **交付物：** 每家一個 Cordis plugin，`inject: ['model']`，呼叫 `ctx.model.register(...)`（記得保留回傳的 disposer），可插拔切換，附整合測試（mock HTTP）。
+**實際結果跟原計畫的差異：**
+- 新增 **OpenRouter** 為第 6 家（使用者要求），最終是 7 家 provider：Ollama、OpenAI、
+  Gemini、Grok、NVIDIA NIM、OpenRouter、Claude。
+- 原計畫「Claude/GPT/Gemini/Grok 都走 OpenAI 相容端點」查證後不準確：**只有 6 家
+  （不含 Claude）是共用一套 `openai-compatible/client.ts`**；Claude 走 Anthropic
+  原生 Messages API，因為 Anthropic 自己的文件明講 OpenAI 相容層只給測試用，不是
+  production-ready（見 ADR-0003）。
+- `register()` 的 disposer **不需要**手動存——實驗證明 plugin 自己的 fiber 被卸載時會
+  自動連帶清掉它註冊的東西（見 MEM-20260817-phase3-provider-research.md），上面那句
+  「記得保留」是原計畫寫的，實際上不用。
+- 新增 `.env.example`（本專案第一次真的需要 API key）、`package.json` 的
+  `start`/`dev` 改用 `node --env-file-if-exists=.env`。
+- `pnpm test` 實際跑出 **55 個測試全過**（chat/agent domain 27、model registry 6、
+  channel registry 4、openai-compatible client 9、anthropic client 8、7-provider
+  整合測試 1）。
 
 ### Phase 4 — 持久化與附件
 **學習重點：** SQLite schema 設計（rooms/messages/agents/attachments）、檔案上傳（先存本地磁碟，之後再談雲端）。

@@ -1,9 +1,10 @@
 import { Context, Service } from 'cordis'
+import type { ChatMessage, ChatCompletionResult } from './types.ts'
 
 export interface ModelProvider {
   name: string
-  // TODO(Phase 3): complete(prompt, options) — actual per-provider implementation
-  // (Ollama / OpenAI-compatible endpoints for Claude, GPT, Gemini, Grok, NVIDIA build)
+  /** @throws if the underlying request fails or returns a response this provider can't parse. */
+  complete(messages: ChatMessage[], model: string): Promise<ChatCompletionResult>
 }
 
 declare module 'cordis' {
