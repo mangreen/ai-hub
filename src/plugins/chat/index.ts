@@ -5,25 +5,28 @@ declare module 'cordis' {
     chat: ChatService
   }
   interface Events {
-    // Emitted whenever ANY message enters a room — from the Web UI, an Agent,
-    // or (from Phase 8 onward) an external channel adapter. Downstream code
-    // should never need to know which source it came from.
+    // Not yet emitted by anything — reserved contract for Phase 4, when
+    // ChatService actually persists messages. Once wired up: fires for ANY
+    // message entering a room, regardless of source (Web UI, an Agent, or
+    // an external channel adapter from Phase 8), so downstream listeners
+    // never need to know which source it came from.
     'chat/message'(payload: { roomId: string; from: string; content: string }): void
   }
 }
 
 /**
- * Owns Room/Message state. Empty shell for Phase 1 — real persistence-backed
- * logic (sandbox visibility rules, membership, etc.) lands in Phase 2 (domain)
- * and Phase 4 (storage adapter).
+ * Owns Room/Message state. The pure domain rules (Room/Message shape,
+ * sandbox visibility) already exist in ./domain.ts and are fully tested —
+ * this class is still an empty shell because it has nothing to hold that
+ * state yet. Phase 4 wires domain.ts's functions to real persistence
+ * (SQLite) here; only then will this class grow real methods.
  */
 export class ChatService extends Service {
   constructor(ctx: Context) {
     super(ctx, 'chat')
   }
 
-  // TODO(Phase 2): createRoom, addMember, listMessages, sandbox visibility rules
-  // TODO(Phase 2): messages must carry an optional `sourceChannel` field —
-  //   see docs/adr/ADR-0002-channel-gateway.md — so a message from WhatsApp
-  //   and a message typed in the Web UI are the same shape downstream.
+  // TODO(Phase 4): createRoom/addMember/listMessages backed by ctx.storage,
+  // using createRoom/addMember/canAgentViewRoom from ./domain.ts rather than
+  // reimplementing those rules here.
 }
