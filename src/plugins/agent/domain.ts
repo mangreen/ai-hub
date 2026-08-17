@@ -32,6 +32,7 @@ function assertNonBlank(value: string, field: string): void {
   }
 }
 
+/** @throws if `id`, `name`, or `modelRef` is empty/whitespace-only. */
 export function createAgent(params: {
   id: string
   name: string
@@ -49,6 +50,7 @@ export function createAgent(params: {
   }
 }
 
+/** @throws if `fromAgentId === toAgentId`, or if `task` is empty/whitespace-only. */
 export function assignTask(fromAgentId: string, toAgentId: string, task: string): TaskAssignment {
   if (fromAgentId === toAgentId) {
     throw new Error('an agent cannot assign a task to itself')

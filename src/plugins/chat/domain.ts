@@ -33,6 +33,7 @@ function assertNonBlank(value: string, field: string): void {
   }
 }
 
+/** @throws if `id` or `name` is empty/whitespace-only. */
 export function createRoom(params: { id: string; name: string; sandboxed?: boolean }): Room {
   assertNonBlank(params.id, 'Room.id')
   assertNonBlank(params.name, 'Room.name')
@@ -44,6 +45,7 @@ export function createRoom(params: { id: string; name: string; sandboxed?: boole
   }
 }
 
+/** @throws if `content` is empty/whitespace-only. */
 export function createMessage(params: {
   id: string
   roomId: string

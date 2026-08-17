@@ -41,8 +41,8 @@ interface ChannelAdapter {
   呼叫 `ctx.channel.register(adapter)`。
 - Adapter 收到外部訊息時，統一 emit **`channel/message-received`** 事件
   （payload 包含 `channel` 名稱 + 外部使用者 id + 內容），下游的 Agent 協作邏輯
-  完全不需要知道訊息是從哪個平台來的——這就是 Phase 0 `event-demo.ts` 示範的
-  event-based 解耦，在這裡真正派上用場。
+  完全不需要知道訊息是從哪個平台來的——這就是 Phase 0 示範過的 event-based 解耦
+  （原始範例已刪除，見 git branch `phase/0-environment-cordis-basics`），在這裡真正派上用場。
 
 ## 對 Phase 2（Domain 層）的預留（現在只記錄，不現在做）
 

@@ -24,17 +24,29 @@ export class ModelService extends Service {
     super(ctx, 'model')
   }
 
+  /**
+   * Registers a provider. Registration is a Cordis effect: the returned
+   * disposer unregisters it (and can be awaited). A provider plugin that
+   * unloads should call its own disposer so a stale provider can't linger.
+   */
   register(provider: ModelProvider) {
-    if (this.providers.has(provider.name)) {
-      throw new Error(`model provider "${provider.name}" already registered`)
-    }
-    this.providers.set(provider.name, provider)
+    return this.ctx.effect(() => {
+      if (this.providers.has(provider.name)) {
+        throw new Error(`model provider "${provider.name}" already registered`)
+      }
+      this.providers.set(provider.name, provider)
+      return () => {
+        this.providers.delete(provider.name)
+      }
+    })
   }
 
+  /** Returns the registered provider, or `undefined` if no provider with this name is registered. */
   get(name: string): ModelProvider | undefined {
     return this.providers.get(name)
   }
 
+  /** Names of all currently registered providers, in registration order. */
   list(): string[] {
     return [...this.providers.keys()]
   }

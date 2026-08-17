@@ -44,13 +44,50 @@
 |---|---|---|---|
 | 架構分層 | 嚴格 Hexagonal + DDD 資料夾 | Cordis service 邊界即分層（`ctx.chat` / `ctx.agent` / `ctx.model` / `ctx.storage`） | Cordis 本身就是一種輕量 hexagonal，不需要再疊一層資料夾規則 |
 | TDD | 所有功能 Red-Green-Refactor | Domain 邏輯（Agent 分配、sandbox 可見性規則）**必須**先寫測試；UI/黏合層可以先跑起來再補測試 | 單人開發，UI 反覆試錯階段寫測試效益低 |
-| 覆蓋率 Gate | CI 強制 80% 否則擋 merge | 目標 60–70%（僅 domain/application 層），先用 `vitest --coverage` 看趨勢，不設 CI 硬擋 | 沒有團隊審查壓力，硬 gate 只會拖慢學習節奏 |
+| 覆蓋率 Gate | CI 強制 80% 否則擋 merge | 目標 60–70%（僅 domain/application 層），用 `node --test --experimental-test-coverage` 看趨勢，不設 CI 硬擋 | 沒有團隊審查壓力，硬 gate 只會拖慢學習節奏；測試工具本身也不用 vitest，見下方 2.1 |
 | 整合測試環境 | Testcontainers 真實 DB | SQLite in-memory（`:memory:`）即可，Docker 留到 Phase 8 | 避開 Big Sur 上 Docker Desktop 相容性問題 |
 | 壓測 | K6 / Autocannon 正式壓測 | 延後到 Phase 8，用 Autocannon（比 K6 輕、免額外安裝） | 機器效能有限，先求功能正確 |
 | 機密管理（4.3 節） | 完整規則 | **完全保留，不砍** | 這是唯一「多人/單人都一樣重要」的規則——一旦洩漏 API key 沒有例外 |
 | Git 流程 | 每個 TDD cycle commit | 保留：每階段開一個 `phase/N-主題` branch，完成後 merge 回 main + 打 tag | 符合你原本非功能需求「每個階段開新 branch」 |
 | 文件（MEM/ERR/SKILL/ADR） | 全套維護 | 保留但簡化：每階段結束寫 1 篇 MEM（決策）+ 有錯誤才寫 ERR，不強制每個小決定都建檔 | 過度建檔對單人專案是負擔，抓大放小 |
 | Coverage/Secrets CI 掃描 | GitHub Actions 全套 | 保留 **Gitleaks**（機密掃描，成本低效益高）；lint + unit test 也上 CI；覆蓋率/壓測 CI 留到 Phase 8 | 分階段導入 CI，避免一開始就卡在 pipeline 設定 |
+
+### 2.1 採用的 DeepSeek Harness Skills（`.agents/skills`）
+
+DeepSeek Harness 的倉庫在 `.agents/skills` 下有 11 個 SKILL.md（`dsh-archive-agent-notes`、
+`dsh-code-review`、`dsh-doc-site-sync`、`dsh-doc-standards`、`dsh-find-simplifications`、
+`dsh-merging-stacked-prs`、`dsh-pre-push-checks`、`dsh-prose-standard`、`dsh-translate-docs`、
+`dsh-trim-cot-leakage`、`record-browser-gif`）。GitHub 擋掉了對目錄頁的自動存取，實際完整讀到的
+只有 `dsh-pre-push-checks`、`dsh-prose-standard`、`dsh-doc-standards` 三份 + 倉庫根目錄的
+`AGENTS.md`；其餘檔名已知但內容未讀，不假裝讀過。以下兩條規則來自這三份，判斷跟這個專案的規模
+（單人、無 CI 團隊審查）直接相關，正式採用：
+
+**A. 註解/文件撰寫標準（採自 `dsh-prose-standard`）**
+- comment 只寫「非顯而易見的 contract」（前置/後置條件、不變量、誰擁有什麼、失敗時會怎樣）—— 不重述
+  code 已經表達出來的事。改動一個函式時，先問「這行 comment 是在講 code 看不出來的事，還是在複述
+  control flow」，是後者就刪。
+- Public API（例如 Service 的 public method、export 的 type）要交代：回傳值的語意差異、什麼情況下
+  throw、side effect、誰擁有回傳的資源。
+- Test 只解釋「為什麼需要這個測試案例／這個 fixture」，不要逐行講「這行在斷言什麼」——code 本身就是
+  那個答案。
+- 字數變少不等於變好；拿掉的前提是每個事實（誰、在什麼條件下、承諾什麼、例外是什麼）都還在，只是講得
+  更精準。
+
+**B. Push/Merge 前的檢查範圍（採自 `dsh-pre-push-checks`，大幅簡化到單人專案的規模）**
+- 原規則的核心精神：**選跟這次改動範圍相符的最小檢查**，不要每次都反射性跑全部。dsh 是大型 monorepo
+  才需要這麼精細的分流；我們專案目前小，所以簡化成：
+  - 動到 `domain.ts` / `*.test.ts` → `pnpm test`
+  - 動到 service 的 Cordis 接線（`index.ts` 的 `declare module`、`inject`、`ctx.plugin`）→
+    `pnpm typecheck` + `pnpm start`
+  - 只動文件（`CLAUDE.md`/`README.md`/`docs/`/`memory/`/`error/`）→ 人工讀一次，不需要重跑測試
+  - 不確定就三個都跑——專案還小，全套成本很低，等專案變大、測試變慢了再回頭套用 dsh 那套更精細的
+    「match evidence to the surface」分流規則。
+
+**這兩條規則跟未來開發的關係：** 寫進本檔案，本檔案是每個 Phase 開始時都會重新讀的專案憲章，之後任何
+一個 Phase 寫 comment、寫 test、或要 commit/push 前，都直接套用這裡的規則，不用另外去記或查
+原始 skill 檔案。詳細研究過程見 `memory/MEM-20260816-registrations-as-effects.md`
+（順帶從 `AGENTS.md` 的「registrations are effects」慣例挖出一個真的補上的 bug：
+`ModelService`/`ChannelService` 的 `register()` 原本不能撤銷註冊，已補上 disposer）。
 
 ---
 
@@ -84,7 +121,7 @@ ai-hub/
 
 ---
 
-## 4. 開發階段（每階段結束：merge branch → 更新 CHANGELOG/todo.md → 寫 1 篇 MEM → 更新架構圖 → 跟你確認後才進下一階段）
+## 4. 開發階段（每階段結束：merge branch → 更新 CHANGELOG/todo.md → 寫 1 篇 MEM → 更新架構圖 → 用 2.1 的規則自我審查一次 comment/文件 → push 前照 2.1-B 選最小檢查範圍 → 跟你確認後才進下一階段）
 
 ### Phase 0 — 環境與 Cordis 基礎 ✅ 完成（2026-08-16，`phase-0-complete` tag）
 **學習重點：** 讀完 dsh 的 `cordis-tutorial`（01-first-plugin → 03-services），理解 plugin / service / inject / event。
@@ -106,9 +143,20 @@ ai-hub/
 **實際結果：** `src/plugins/chat/domain.ts` + `src/plugins/agent/domain.ts`，27 個測試全過，100% coverage。
 測試工具用 Node 內建 `node:test`（不是 vitest——理由跟 Phase 0 的 esbuild 坑一致，見 MEM-20260816-phase2）。
 
+### Phase 2.5 — Phase 3 前置整理 ✅ 完成（2026-08-16）
+**這不是原計畫的一個 Phase，是你主動要求在 Phase 3 前做的一輪整理：**
+1. 研究 DeepSeek Harness 的 `.agents/skills`，把其中兩條規則整合進本檔案 2.1 節
+   （並確保 Section 4 的每階段流程會用到它，不是寫了就沒人看）。
+2. 系統架構圖 + Cordis 依賴圖（Mermaid，非 ASCII——手畫 ASCII 對不齊 CJK/ASCII 混排寬度，
+   改用有實際跑 `mermaid.parse()` 驗證過語法的 Mermaid），放在 `docs/architecture/`。
+3. 全部原始碼過一輪 comment/文件審查，套用 2.1-A 的標準；順便抓到並修好幾個已經過期的引用
+   （指向被刪除的 Phase 0 demo 檔案、"Phase 2 TODO" 但 Phase 2 其實已經做完的字眼）。
+4. 從 skill 研究裡帶出一個真的要修的 bug：`register()` 沒辦法撤銷，用 TDD 補上
+   （見 MEM-20260816-registrations-as-effects.md）。
+
 ### Phase 3 — Model Provider Plugins
 **學習重點：** 用同一個 `ModelProvider` 介面，分別接 Ollama（本地）、OpenAI-相容端點（Claude/GPT/Gemini/Grok 大多有相容層或各自 SDK）、NVIDIA build.nvidia.com API。
-**交付物：** 每家一個 Cordis plugin，`inject: ['model']`，呼叫 `ctx.model.register(...)`，可插拔切換，附整合測試（mock HTTP）。
+**交付物：** 每家一個 Cordis plugin，`inject: ['model']`，呼叫 `ctx.model.register(...)`（記得保留回傳的 disposer），可插拔切換，附整合測試（mock HTTP）。
 
 ### Phase 4 — 持久化與附件
 **學習重點：** SQLite schema 設計（rooms/messages/agents/attachments）、檔案上傳（先存本地磁碟，之後再談雲端）。
