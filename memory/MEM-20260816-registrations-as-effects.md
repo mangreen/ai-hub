@@ -23,5 +23,9 @@ Tags: [cordis, model, channel, skill-research]
 
 ## When to Use
 Phase 3（model provider plugin）、Phase 8（channel adapter plugin）寫 `apply(ctx)` 時，
-把 `register()` 回傳的 disposer 存起來；plugin 被卸載時（Cordis 自動處理，或手動呼叫）
-對應的 provider/adapter 就會跟著消失，不會留著一個指向已卸載 plugin 的殘留註冊。
+直接呼叫 `ctx.model.register(...)` / `ctx.channel.register(...)`，**不需要**手動存
+disposer——Phase 3 實際驗證過：卸載呼叫端 plugin 自己的 fiber（`fiber.dispose()`）
+就會自動連帶清掉它註冊的項目，不用自己接手管理生命週期（見
+`memory/MEM-20260817-phase3-provider-research.md` 的驗證過程）。回傳的 disposer
+只有在需要「不卸載整個 plugin、只是手動撤銷這一筆註冊」的情境才用得到（例如插件市場的
+「停用」按鈕，Phase 7）。
