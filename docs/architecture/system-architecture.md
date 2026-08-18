@@ -20,7 +20,7 @@ flowchart TD
         chat["ctx.chat<br/>Room / Message domain<br/>DONE"]
         agent["ctx.agent<br/>Agent / TaskAssignment domain<br/>DONE"]
         model["ctx.model<br/>registry, effect-based<br/>DONE"]
-        storage["ctx.storage<br/>空殼，Phase 4 補實作<br/>DONE stub"]
+        storage["ctx.storage<br/>SQLite (node:sqlite)<br/>DONE"]
         channel["ctx.channel<br/>registry, effect-based<br/>DONE"]
     end
 
@@ -36,9 +36,9 @@ flowchart TD
         wecom["企業微信自建應用"]
     end
 
-    subgraph StorageImpl["Storage — Phase 4 規劃中"]
-        sqlite["SQLite"]
-        attachments["附件檔案"]
+    subgraph StorageImpl["Storage — Phase 4 DONE"]
+        sqlite["SQLite<br/>node:sqlite, built-in"]
+        attachments["附件檔案<br/>本地磁碟"]
     end
 
     subgraph Marketplace["插件市場 — Phase 7 規劃中"]
@@ -74,7 +74,7 @@ flowchart TD
 | `ctx.chat` | 已實作 | Phase 1（骨架）+ Phase 2（domain） | `src/plugins/chat/` |
 | `ctx.agent` | 已實作 | Phase 1（骨架）+ Phase 2（domain） | `src/plugins/agent/` |
 | `ctx.model` | 已實作（registry 可用，effect-based） | Phase 1 | `src/plugins/model/` |
-| `ctx.storage` | 已實作（空殼） | Phase 1 骨架，Phase 4 補實作 | `src/plugins/storage/` |
+| `ctx.storage` | 已實作 | Phase 1 骨架 + Phase 4 SQLite 實作 | `src/plugins/storage/` |
 | `ctx.channel` | 已實作（registry 可用，effect-based） | Phase 1，見 ADR-0002 | `src/plugins/channel/` |
 | Model provider 插件 | 規劃中 | Phase 3 | `src/plugins/model/{ollama,openai-compatible}/` |
 | Channel adapter 插件 | 規劃中 | Phase 8 | `src/plugins/channel/{whatsapp,messenger,wecom}/` |

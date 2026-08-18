@@ -173,9 +173,24 @@ ai-hub/
   channel registry 4、openai-compatible client 9、anthropic client 8、7-provider
   整合測試 1）。
 
-### Phase 4 — 持久化與附件
+### Phase 4 — 持久化與附件 ✅ 完成（2026-08-17）
 **學習重點：** SQLite schema 設計（rooms/messages/agents/attachments）、檔案上傳（先存本地磁碟，之後再談雲端）。
 **交付物：** storage plugin + 附件上傳 API + 整合測試（SQLite in-memory）。
+**實際結果跟原計畫的差異：**
+- 用 **`node:sqlite`**（Node 22.5+ 內建模組），不是 `better-sqlite3`——後者是 native addon，
+  跟這台機器已經踩過的 Big Sur/esbuild 坑是同一類風險，`node:sqlite` 編譯進 Node 本身，
+  沒有這個問題。仍是 Node 標記的實驗性功能（會印一次 `ExperimentalWarning`），但功能可用。
+  完整理由見 ADR-0004。
+- **`ChatService`/`AgentService` 現在 `static inject = ['storage']`**——這是本專案第一次
+  有 service 互相 inject，動手寫之前先驗證過 Service class 的 `static inject` 語法真的有效
+  （見 MEM-20260817-phase4-storage-and-static-inject.md），`docs/architecture/cordis-dependency-graph.md`
+  已更新反映這個變化。
+- `AgentService` 也補上 `createAgent`/`getAgent`/`listAgents`（原計畫只明確提到 ChatService，
+  但 schema 本來就要包含 `agents` 表，順便把對稱的 CRUD 也做了；task-assignment 持久化留給
+  Phase 5，因為那才是真正需要狀態的地方）。
+- 「附件上傳 API」目前是 `StorageService.saveAttachment()`（存到本地磁碟 + 寫 DB row）——
+  真正的 HTTP 上傳端點要等 Phase 6 有 `ctx.api` 才能做，Phase 4 這裡先把底層能力做好。
+- `pnpm test` 實際跑出 **82 個測試全過**。
 
 ### Phase 5 — 多 Agent 協作（Agent Loop/Graph 核心）
 **學習重點：** 這是整個專案最有價值的部分——「範例2」的 manager-agent 模式：一個 Agent 收到任務後，自動建立聊天室、指派其他 Agent、追蹤進度。用 Cordis 的 event 系統做 Agent 間通訊。

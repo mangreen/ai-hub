@@ -1,10 +1,10 @@
 /**
  * Kernel entrypoint. Builds the root Cordis Context and mounts the five
- * service boundaries decided in Phase 1 (docs/adr/ADR-0001, ADR-0002), plus
- * the seven Phase 3 model provider plugins (docs/adr/ADR-0003). None of the
- * five services `inject` each other — see
- * docs/architecture/cordis-dependency-graph.md for why that's intentional,
- * not an oversight.
+ * service boundaries decided in Phase 1 (docs/adr/ADR-0001, ADR-0002), the
+ * seven Phase 3 model provider plugins (docs/adr/ADR-0003), and Phase 4's
+ * SQLite persistence (docs/adr/ADR-0004). Since Phase 4, ChatService and
+ * AgentService both `static inject = ['storage']` — see
+ * docs/architecture/cordis-dependency-graph.md for the current graph.
  */
 import { Context } from 'cordis'
 import { ChatService } from './plugins/chat/index.ts'

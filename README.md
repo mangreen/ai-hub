@@ -4,7 +4,13 @@
 DeepSeek Harness skills，見 CLAUDE.md 2.1 節）。系統架構圖跟 Cordis 依賴圖見
 [`docs/architecture/`](./docs/architecture/)。
 
-## 目前狀態：Phase 3 — Model Provider Plugins ✅
+## 目前狀態：Phase 4 — 持久化與附件 ✅
+
+`ChatService`/`AgentService` 現在真的持久化到 SQLite（`node:sqlite`，Node 內建，理由見
+[`docs/adr/ADR-0004-storage-architecture.md`](./docs/adr/ADR-0004-storage-architecture.md)）。
+Room/Message/Agent 的驗證規則還是走 `domain.ts` 的純函式（Phase 2 沒有動），
+Service 層只負責把驗證過的資料寫進/讀出資料庫。附件用 `StorageService.saveAttachment()`
+存到本地磁碟。
 
 七家 model provider 已接上 `ctx.model`：Ollama（本地）、OpenAI、Gemini、Grok、NVIDIA NIM、
 **OpenRouter**、Claude。其中六家（不含 Claude）共用同一套 OpenAI-相容 client；Claude 走
@@ -17,12 +23,15 @@ Anthropic 原生 Messages API——原因跟完整比較表見
 
 五個 service 邊界（Phase 1）：`ctx.chat` / `ctx.agent` / `ctx.model` / `ctx.storage` / `ctx.channel`
 （`channel` 為未來 WhatsApp/Messenger/企業微信整合預留，見 `docs/adr/ADR-0002-channel-gateway.md`）。
+**Phase 4 起 `ChatService`/`AgentService` 都 `static inject = ['storage']`**——本專案第一次
+有 service 互相 inject，見 `docs/architecture/cordis-dependency-graph.md`。
 `ModelService`/`ChannelService` 的 `register()` 回傳 Cordis effect disposer，但 provider
 plugin 自己不需要手動存它——plugin 卸載時會自動連帶清掉註冊，見
 `memory/MEM-20260817-phase3-provider-research.md`。
 
 - Plugin kernel：[`cordis`](https://github.com/cordiverse/cordis)
 - Runtime：Node.js 內建 TypeScript type-stripping，無編譯步驟、無 esbuild 依賴
+- 持久化：`node:sqlite`（Node 內建，同樣無 native binary 依賴）
 - 測試：Node 內建 `node:test`，同樣無 native binary 依賴
 - Package manager：pnpm
 
@@ -61,7 +70,7 @@ model providers registered: [
 channel adapters registered: []
 ```
 
-`pnpm test` 預期看到 `# tests 55` `# pass 55` `# fail 0`。
+`pnpm test` 預期看到 `# tests 82` `# pass 82` `# fail 0`。
 
 ## 測試涵蓋
 
@@ -74,6 +83,9 @@ channel adapters registered: []
 | `src/plugins/model/openai-compatible/client.ts` | 六家共用的 OpenAI-相容 HTTP client（mock fetch，不打真實 API）— Phase 3 |
 | `src/plugins/model/anthropic/client.ts` | Claude 原生 Messages API client（mock fetch）— Phase 3 |
 | `src/plugins/model/all-providers.test.ts` | 七個 provider plugin 一起掛載的整合測試 — Phase 3 |
+| `src/plugins/storage/index.ts` | SQLite schema、run/get/all、saveAttachment — Phase 4 |
+| `src/plugins/chat/index.ts` | `ChatService` 的 createRoom/addMember/postMessage/listMessages/canAgentViewRoom（真的持久化） — Phase 4 |
+| `src/plugins/agent/index.ts` | `AgentService` 的 createAgent/getAgent/listAgents（真的持久化） — Phase 4 |
 
 ## 已知的坑
 
