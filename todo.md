@@ -4,20 +4,23 @@
 ## Phase 1 — Plugin Kernel 骨架 ✅ merged to main (`phase-1-complete`)
 ## Phase 2 — Domain 層（TDD）✅ merged to main (`phase-2-complete`)
 ## Phase 2.5 — Phase 3 前置整理 ✅ merged to main (`phase-2.5-complete`)
+## Phase 3 — Model Provider Plugins ✅ merged to main (`phase-3-complete`)
 
-## Phase 3 — Model Provider Plugins
-- [x] 查證 7 家 provider 的 OpenAI 相容性現況（非憑印象），寫成 ADR-0003
-- [x] `openai-compatible/client.ts`：六家共用 HTTP client，TDD（9 個測試）
-- [x] `anthropic/client.ts`：Claude 原生 Messages API client，TDD（8 個測試）
-- [x] 7 個 provider plugin（ollama/openai/gemini/grok/nvidia-nim/openrouter/claude）
-- [x] 新增 OpenRouter（使用者要求）
-- [x] 整合測試：7 個 provider 一起掛載，驗證 ctx.model.list() 正確
-- [x] 實驗驗證 Cordis fiber 自動清理，修正先前 MEM 裡沒驗證過的建議
-- [x] `.env.example` + `package.json` 改用 `--env-file-if-exists`
-- [x] 55 個測試全過、typecheck 乾淨、無 .env 也能正常開機
-- [x] 你在自己機器上重跑一次確認（可以順便测试真的填一個 API key 進去打看看）
-- [x] git 分支流程：`phase/3-model-provider-plugins` → merge 回 `main`
+## Phase 4 — 持久化與附件
+- [x] 驗證 `node:sqlite` 實際 API（不憑印象），寫進 MEM
+- [x] Schema 設計：rooms/room_members/messages/agents/attachments，全部集中在 StorageService
+- [x] `StorageService`：run/get/all + saveAttachment，TDD（7 個測試）
+- [x] 驗證 Service class 的 `static inject`（先寫最小重現腳本）
+- [x] `ChatService` 接上真持久化：createRoom/getRoom/addMember/postMessage/listMessages/canAgentViewRoom，TDD（13 個測試）
+- [x] `AgentService` 接上真持久化：createAgent/getAgent/listAgents，TDD（7 個測試）
+- [x] ADR-0004 + 更新 Cordis 依賴圖（chat/agent 現在 inject storage）
+- [x] `.gitignore` 加 `data/`（SQLite 檔案 + 附件不進版控）
+- [x] 抓到並修掉一個真的 bug：`??` 對空字串 env var 不 fallback（ERR-20260817）
+- [x] 82 個測試全過、typecheck 乾淨、真實檔案路徑（非 :memory:）也驗證過
+- [x] 你在自己機器上重跑一次確認
+- [x] git 分支流程：`phase/4-persistence-and-attachments` → merge 回 `main`
 
-## Phase 4 — 持久化與附件（下一階段，尚未開始）
-- [ ] SQLite schema（rooms/messages/agents/attachments）
-- [ ] `ChatService` 接上真正的持久化，改用 `domain.ts` 的 createRoom/addMember 等函式
+## Phase 5 — 多 Agent 協作（Agent Loop/Graph 核心）（下一階段，尚未開始）
+- [ ] 任務圖（DAG）資料結構、manager plugin
+- [ ] `AgentService` 補上 task-assignment 持久化（Phase 4 故意沒做，因為這才是真正需要狀態的地方）
+- [ ] 用 Cordis event 系統做 Agent 間通訊（`agent/task-assigned` 事件目前只有型別宣告，還沒人 emit）
