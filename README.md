@@ -75,6 +75,76 @@ channel adapters registered: []
 | `src/plugins/model/anthropic/client.ts` | Claude 原生 Messages API client（mock fetch）— Phase 3 |
 | `src/plugins/model/all-providers.test.ts` | 七個 provider plugin 一起掛載的整合測試 — Phase 3 |
 
+## 連接真實 Model Provider 測試 (以 OpenRouter 為例)
+
+phase3 一次性的手動測試腳本，不是專案的一部分——純粹用來從命令列打一次 provider，確認接線接對了。跑法：
+
+### 測試腳本
+
+`.tmp/test-openrouter.ts`
+
+```typescript
+import { Context } from 'cordis'
+import { ModelService } from '../src/plugins/model/index.ts'
+import * as openrouterProvider from '../src/plugins/model/openrouter/index.ts'
+
+const ctx = new Context()
+ctx.plugin(ModelService)
+ctx.plugin(openrouterProvider)
+
+// 跟整個專案其他地方一樣的 inject 寫法（從 Phase 0 就是這個模式）——
+// 保證 ctx.model 存在、而且上面的 openrouter plugin 已經註冊完，這個
+// callback 才會執行。
+ctx.plugin({
+  name: 'scratch-test',
+  inject: ['model'],
+  async apply(ctx: Context) {
+    const provider = ctx.model.get('openrouter')
+    if (!provider) {
+      throw new Error('openrouter provider 沒註冊到——上面的 plugin 掛載失敗了？')
+    }
+
+    console.log('打給 OpenRouter...')
+    try {
+      const result = await provider.complete(
+        [{ role: 'user', content: 'Say hello in one short sentence.' }],
+        'nvidia/nemotron-3-ultra-550b-a55b:free',
+      )
+      console.log('回應的 model：', result.model)
+      console.log(result.content)
+    } catch (err) {
+      // 一定要包 try/catch：Cordis 的 fiber 執行環境不會像一般 top-level
+      // await 那樣把 unhandled rejection 清楚印出來，錯誤可能就這樣無聲消失。
+      console.error('呼叫失敗：', (err as Error).message)
+      process.exitCode = 1
+    }
+  },
+})
+```
+
+### 怎麼跑
+
+```bash
+cp .env.example .env # 編輯 .env，填入 OPENROUTER_API_KEY=sk-or-v1-...
+node --env-file-if-exists=.env .tmp/test-openrouter.ts
+```
+需要先 `cp .env.example .env`，並填入 OPENROUTER_API_KEY。
+
+### 我實際測過的兩件事
+
+***1. 沒有 try/catch 會怎樣***
+我一開始寫的版本沒包 try/catch，跑起來只印了「打給 OpenRouter...」就沒了，
+看起來像卡住，其實是錯誤被 Cordis 的 fiber 執行環境吞掉、沒印出來。
+這是個真的會讓人卡住除錯的坑，所以最終版本一定要包 try/catch，把 .message 印出來。
+
+***2. 包了 try/catch 之後，在我的沙盒裡實際跑出的錯誤***
+```bash
+呼叫失敗： OpenAI-compatible request to https://openrouter.ai/api/v1 failed: 403 Host not in allowlist: openrouter.ai...
+```
+這個 403 不是 OpenRouter 回的，是我自己執行環境的網路限制擋下來的（我的沙盒不能連 openrouter.ai）。
+重點是：這證明程式碼一路正確地打到了真實的 HTTP 呼叫，chatCompletion() 的錯誤處理也正確接住並清楚印出來了。
+在你自己的 Mac 上（有正常網路 + 填了真的 API key），這行會換成 OpenRouter 真正回傳的內容。
+
 ## 已知的坑
 
 見 [`error/ERR-20260816-cordis-nodenext-imports.md`](./error/ERR-20260816-cordis-nodenext-imports.md)：
