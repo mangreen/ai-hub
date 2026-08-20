@@ -43,7 +43,7 @@
 | 項目 | v3.0 原規範 | AI Hub 精簡版 | 為什麼調整 |
 |---|---|---|---|
 | 架構分層 | 嚴格 Hexagonal + DDD 資料夾 | Cordis service 邊界即分層（`ctx.chat` / `ctx.agent` / `ctx.model` / `ctx.storage`） | Cordis 本身就是一種輕量 hexagonal，不需要再疊一層資料夾規則 |
-| TDD | 所有功能 Red-Green-Refactor | Domain 邏輯（Agent 分配、sandbox 可見性規則）**必須**先寫測試；UI/黏合層可以先跑起來再補測試 | 單人開發，UI 反覆試錯階段寫測試效益低 |
+| TDD | 所有功能 Red-Green-Refactor | Domain 邏輯（Agent 分配、isolation 可見性規則）**必須**先寫測試；UI/黏合層可以先跑起來再補測試 | 單人開發，UI 反覆試錯階段寫測試效益低 |
 | 覆蓋率 Gate | CI 強制 80% 否則擋 merge | 目標 60–70%（僅 domain/application 層），用 `node --test --experimental-test-coverage` 看趨勢，不設 CI 硬擋 | 沒有團隊審查壓力，硬 gate 只會拖慢學習節奏；測試工具本身也不用 vitest，見下方 2.1 |
 | 整合測試環境 | Testcontainers 真實 DB | SQLite in-memory（`:memory:`）即可，Docker 留到 Phase 8 | 避開 Big Sur 上 Docker Desktop 相容性問題 |
 | 壓測 | K6 / Autocannon 正式壓測 | 延後到 Phase 8，用 Autocannon（比 K6 輕、免額外安裝） | 機器效能有限，先求功能正確 |
@@ -107,11 +107,12 @@ ai-hub/
 ├── cordis.yml                # Cordis 應用組裝設定
 ├── src/
 │   ├── plugins/
-│   │   ├── chat/              # 聊天室/訊息/sandbox 可見性 service
+│   │   ├── chat/              # 聊天室/訊息/isolation 可見性 service
 │   │   ├── agent/             # Agent 定義、任務指派、多 Agent 協作 loop
 │   │   ├── model/              # 各家模型 provider（下面拆一層）
 │   │   │   ├── ollama/
 │   │   │   ├── openai-compatible/   # Claude / GPT / Gemini / Grok / NVIDIA build 共用介面
+│   │   │   └── ...
 │   │   ├── storage/            # SQLite + 附件檔案儲存
 │   │   ├── channel/            # 外部通訊平台 adapter（whatsapp/messenger/wecom，Phase 8）
 │   │   └── marketplace/        # 插件市場：manifest、動態啟停
@@ -137,7 +138,8 @@ ai-hub/
 
 ### Phase 2 — Domain 層（TDD）✅ 完成（2026-08-16）
 **學習重點：** Room / Message / Agent / SandboxPolicy 的核心規則（例如「這個 Agent 能不能看到其他聊天室」）用純函式先寫測試再實作。
-**交付物：** domain 單元測試（無 I/O），涵蓋 sandbox 可見性、Agent 指派邏輯。
+**交付物：** domain 單元測試（無 I/O），涵蓋 isolation 可見性、Agent 指派邏輯。
+（`sandboxed` 欄位已於 2026-08-19 改名 `isolated`，見 ADR-0006、MEM-20260819-isolation-rename.md。）
 **別忘記（來自 ADR-0002）：** Message 要能標記 `sourceChannel`（哪個外部平台來的，或 null 代表 Web UI 自己發的），
 現在設計時就把這個欄位放進去，不要等 Phase 8 再回頭改。
 **實際結果：** `src/plugins/chat/domain.ts` + `src/plugins/agent/domain.ts`，27 個測試全過，100% coverage。
@@ -199,11 +201,15 @@ ai-hub/
 ### Phase 6 — API + 聊天 UI MVP
 **學習重點：** REST + WebSocket，前端用 React/Vite 做出類 WhatsApp 的群組介面（房間列表、選 Agent 看歷史）。
 **交付物：** 可用的 Web UI，能開房間、選模型建 Agent、收發訊息。此階段也要生出一個 `ctx.api`（HTTP router）
-service，Phase 8 的 channel adapter 會需要它來註冊 webhook route。
+service，Phase 8 的 channel adapter 會需要它來註冊 webhook route。**Phase 5 之後新增：**
+workflow definition 的 CRUD 端點（讓 UI 能查看/編輯/創建工作流程）、workflow run 狀態查詢/串流、
+activity log 搜尋端點、`ctx.orchestrator.list()` 讓 UI 顯示可選的協作策略。
 
 ### Phase 7 — 插件市場
-**學習重點：** 插件 manifest 格式、執行期動態啟停（正是 Cordis「可逆掛載」的用武之地）、sandbox 開關的 UI 化。
+**學習重點：** 插件 manifest 格式、執行期動態啟停（正是 Cordis「可逆掛載」的用武之地）、isolation 開關的 UI 化。
 **交付物：** 一個範例第三方插件（例如 code-review skill）能透過市場安裝/移除，不用重啟服務。
+**Phase 5 之後新增：** orchestration strategy 成為第三種可透過市場管理的插件類別，
+跟 model provider、channel adapter 並列。
 
 ### Phase 8 — 外部通訊平台閘道（WhatsApp / Messenger / 企業微信）【新增】
 **學習重點：** Webhook 收（驗簽 + 解析各平台不同的 payload 格式）+ REST API 送是三個平台共通的架構；

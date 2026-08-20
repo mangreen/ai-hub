@@ -35,7 +35,7 @@ describe('ChatService.createRoom / getRoom', () => {
       chat.createRoom('r1', 'Team Chat')
       const room = chat.getRoom('r1')
       assert.equal(room?.name, 'Team Chat')
-      assert.equal(room?.sandboxed, false)
+      assert.equal(room?.isolated, false)
       assert.deepEqual(room?.memberIds, [])
     })
   })
@@ -124,7 +124,7 @@ describe('ChatService.canAgentViewRoom', () => {
     })
   })
 
-  test('should_deny_when_not_member_and_room_sandboxed', async () => {
+  test('should_deny_when_not_member_and_room_isolated', async () => {
     await withChat((chat) => {
       chat.createRoom('r1', 'Team', true)
       assert.equal(chat.canAgentViewRoom('r1', { agentId: 'outsider', canPeek: true }), false)

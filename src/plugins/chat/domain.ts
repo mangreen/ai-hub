@@ -7,8 +7,19 @@ export interface Room {
   readonly id: string
   readonly name: string
   readonly memberIds: readonly string[]
-  /** If true, only members can view this room — see docs/adr/ADR-0002-channel-gateway.md */
-  readonly sandboxed: boolean
+  /**
+   * If true, only members can view this room. Named `isolated`, not
+   * `sandboxed` — this is about visibility between agents, NOT execution
+   * isolation (running code/commands safely, which "sandbox" is reserved
+   * for — see docs/adr/ADR-0006-execution-sandbox-plugin.md). Deliberately
+   * NOT `memoryIsolated` either: this scopes everything about the room from
+   * outside agents — messages, attachments, and (later) any skill/prompt
+   * config attached to it — not just "memory" in a narrow sense. Historical
+   * note: called `sandboxed` through Phase 2-4, then briefly
+   * `memoryIsolated`; see memory/MEM-20260819-memory-isolation-rename.md and
+   * memory/MEM-20260819-isolated-rename.md for why it changed twice.
+   */
+  readonly isolated: boolean
 }
 
 export interface Message {
@@ -20,10 +31,10 @@ export interface Message {
   readonly sourceChannel: string | null
 }
 
-/** The subset of an Agent's sandbox setting relevant to this check — see agent/domain.ts for the full Agent type. */
+/** The subset of an Agent's visibility setting relevant to this check — see agent/domain.ts for the full Agent type. */
 export interface AgentVisibility {
   readonly agentId: string
-  /** Whether this agent is allowed to view rooms it isn't a member of (still subject to the room's own `sandboxed` flag). */
+  /** Whether this agent is allowed to view rooms it isn't a member of (still subject to the room's own `isolated` flag). */
   readonly canPeek: boolean
 }
 
@@ -34,14 +45,14 @@ function assertNonBlank(value: string, field: string): void {
 }
 
 /** @throws if `id` or `name` is empty/whitespace-only. */
-export function createRoom(params: { id: string; name: string; sandboxed?: boolean }): Room {
+export function createRoom(params: { id: string; name: string; isolated?: boolean }): Room {
   assertNonBlank(params.id, 'Room.id')
   assertNonBlank(params.name, 'Room.name')
   return {
     id: params.id,
     name: params.name,
     memberIds: [],
-    sandboxed: params.sandboxed ?? false,
+    isolated: params.isolated ?? false,
   }
 }
 
@@ -74,12 +85,14 @@ export function isMember(room: Room, agentId: string): boolean {
 }
 
 /**
- * Sandbox visibility rule (Section "沙盒模式" in CLAUDE.md):
+ * Isolation visibility rule (Section "沙盒模式" in CLAUDE.md — the original
+ * requirement's wording, which this implements under a more precise name,
+ * see Room.isolated's doc comment):
  * a member can always see their own room; a non-member can only see it if
- * BOTH the room allows outside visibility (`!sandboxed`) AND the agent is
+ * BOTH the room allows outside visibility (`!isolated`) AND the agent is
  * allowed to look outside its own rooms (`canPeek`).
  */
 export function canAgentViewRoom(room: Room, agent: AgentVisibility): boolean {
   if (isMember(room, agent.agentId)) return true
-  return !room.sandboxed && agent.canPeek
+  return !room.isolated && agent.canPeek
 }

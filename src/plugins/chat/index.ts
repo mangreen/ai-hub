@@ -17,7 +17,7 @@ declare module 'cordis' {
 interface RoomRow {
   id: string
   name: string
-  sandboxed: number
+  isolated: number
 }
 
 interface MessageRow {
@@ -29,10 +29,10 @@ interface MessageRow {
 }
 
 /**
- * Owns Room/Message persistence. Validation and business rules (sandbox
- * visibility, idempotent membership) live in the pure functions in
- * ./domain.ts — this class's job is only translating between those and
- * ctx.storage's tables, never reimplementing the rules themselves.
+ * Owns Room/Message persistence. Validation and business rules
+ * (isolation visibility, idempotent membership) live in the pure
+ * functions in ./domain.ts — this class's job is only translating between
+ * those and ctx.storage's tables, never reimplementing the rules themselves.
  */
 export class ChatService extends Service {
   static inject = ['storage']
@@ -51,18 +51,18 @@ export class ChatService extends Service {
     return {
       id: row.id,
       name: row.name,
-      sandboxed: !!row.sandboxed,
+      isolated: !!row.isolated,
       memberIds: members.map((m) => m.agent_id),
     }
   }
 
   /** @throws if `name` is blank — see domain.ts's createRoom. */
-  createRoom(id: string, name: string, sandboxed = false): Room {
-    const room = createRoom({ id, name, sandboxed })
-    this.ctx.storage.run('INSERT INTO rooms (id, name, sandboxed) VALUES (?, ?, ?)', [
+  createRoom(id: string, name: string, isolated = false): Room {
+    const room = createRoom({ id, name, isolated })
+    this.ctx.storage.run('INSERT INTO rooms (id, name, isolated) VALUES (?, ?, ?)', [
       room.id,
       room.name,
-      room.sandboxed ? 1 : 0,
+      room.isolated ? 1 : 0,
     ])
     return room
   }

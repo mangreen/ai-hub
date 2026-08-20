@@ -3,7 +3,7 @@
 > 這份圖用 [Mermaid](https://mermaid.js.org/) 畫（GitHub / VS Code / 大多數 Markdown 檢視器都能直接
 > 渲染），語法在寫入前已用 `mermaid.parse()` 實際驗證過，不是手畫 ASCII 對齊猜的。
 
-「DONE」= 已實作（Phase 0–2）。「規劃中」= 尚未實作，標註對應 Phase。
+「DONE」= 已實作。「規劃中」= 尚未實作，標註對應 Phase。
 
 ```mermaid
 flowchart TD

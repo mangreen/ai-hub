@@ -53,7 +53,7 @@ describe('StorageService schema', () => {
 describe('StorageService.run/get/all', () => {
   test('should_insert_and_retrieve_a_row', async () => {
     await withStorage((storage) => {
-      storage.run('INSERT INTO rooms (id, name, sandboxed) VALUES (?, ?, ?)', ['r1', 'Team', 0])
+      storage.run('INSERT INTO rooms (id, name, isolated) VALUES (?, ?, ?)', ['r1', 'Team', 0])
       const row = storage.get<{ id: string; name: string }>('SELECT * FROM rooms WHERE id = ?', ['r1'])
       assert.equal(row?.name, 'Team')
     })
@@ -68,8 +68,8 @@ describe('StorageService.run/get/all', () => {
 
   test('should_return_all_matching_rows', async () => {
     await withStorage((storage) => {
-      storage.run('INSERT INTO rooms (id, name, sandboxed) VALUES (?, ?, ?)', ['r1', 'A', 0])
-      storage.run('INSERT INTO rooms (id, name, sandboxed) VALUES (?, ?, ?)', ['r2', 'B', 0])
+      storage.run('INSERT INTO rooms (id, name, isolated) VALUES (?, ?, ?)', ['r1', 'A', 0])
+      storage.run('INSERT INTO rooms (id, name, isolated) VALUES (?, ?, ?)', ['r2', 'B', 0])
       const rows = storage.all<{ id: string }>('SELECT * FROM rooms ORDER BY id')
       assert.deepEqual(rows.map((r) => r.id), ['r1', 'r2'])
     })
@@ -77,8 +77,8 @@ describe('StorageService.run/get/all', () => {
 
   test('should_throw_when_unique_constraint_violated', async () => {
     await withStorage((storage) => {
-      storage.run('INSERT INTO rooms (id, name, sandboxed) VALUES (?, ?, ?)', ['dup', 'A', 0])
-      assert.throws(() => storage.run('INSERT INTO rooms (id, name, sandboxed) VALUES (?, ?, ?)', ['dup', 'B', 0]))
+      storage.run('INSERT INTO rooms (id, name, isolated) VALUES (?, ?, ?)', ['dup', 'A', 0])
+      assert.throws(() => storage.run('INSERT INTO rooms (id, name, isolated) VALUES (?, ?, ?)', ['dup', 'B', 0]))
     })
   })
 })
@@ -86,7 +86,7 @@ describe('StorageService.run/get/all', () => {
 describe('StorageService.saveAttachment', () => {
   test('should_write_file_to_attachments_dir_and_return_record', async () => {
     await withStorage((storage) => {
-      storage.run('INSERT INTO rooms (id, name, sandboxed) VALUES (?, ?, ?)', ['r1', 'Team', 0])
+      storage.run('INSERT INTO rooms (id, name, isolated) VALUES (?, ?, ?)', ['r1', 'Team', 0])
       storage.run('INSERT INTO messages (id, room_id, sender_id, content, source_channel, created_at) VALUES (?, ?, ?, ?, ?, ?)', [
         'm1', 'r1', 'agent-1', 'see attached', null, new Date().toISOString(),
       ])
@@ -103,7 +103,7 @@ describe('StorageService.saveAttachment', () => {
 
   test('should_persist_attachment_row_queryable_via_get', async () => {
     await withStorage((storage) => {
-      storage.run('INSERT INTO rooms (id, name, sandboxed) VALUES (?, ?, ?)', ['r2', 'Team', 0])
+      storage.run('INSERT INTO rooms (id, name, isolated) VALUES (?, ?, ?)', ['r2', 'Team', 0])
       storage.run('INSERT INTO messages (id, room_id, sender_id, content, source_channel, created_at) VALUES (?, ?, ?, ?, ?, ?)', [
         'm2', 'r2', 'agent-1', 'see attached', null, new Date().toISOString(),
       ])
