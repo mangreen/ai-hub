@@ -194,9 +194,47 @@ ai-hub/
   真正的 HTTP 上傳端點要等 Phase 6 有 `ctx.api` 才能做，Phase 4 這裡先把底層能力做好。
 - `pnpm test` 實際跑出 **82 個測試全過**。
 
-### Phase 5 — 多 Agent 協作（Agent Loop/Graph 核心）
+### Phase 5 — 多 Agent 協作（Agent Loop/Graph 核心）【進行中：registry+schema 已完成，task-graph 策略尚未開始】
 **學習重點：** 這是整個專案最有價值的部分——「範例2」的 manager-agent 模式：一個 Agent 收到任務後，自動建立聊天室、指派其他 Agent、追蹤進度。用 Cordis 的 event 系統做 Agent 間通訊。
-**交付物：** 任務圖（DAG）資料結構、manager plugin、至少跑通一個「Allen 寫前端 / Ben 寫後端」的真實範例。
+**交付物（動手寫之前，先讀 `docs/adr/ADR-0005-orchestrator-and-workflow-architecture.md`、
+`docs/adr/ADR-0007-orchestrator-implementation-and-dag-storage.md`）：**
+- ✅ 新 service `ctx.orchestrator`（registry pattern，跟 `ctx.model`/`ctx.channel` 同一套）——
+  Agent Loop/Graph 本身也是可替換插件，不是寫死在 `AgentService` 裡。**自己寫，不用
+  LangGraph.js 或 openai-agents-js**——理由跟查證過程見 ADR-0007（簡言之：兩者都會讓
+  「可替換」名存實亡，且都不完全貼合我們已經做好的 provider-中立 model 層跟
+  `node:sqlite` persistence）。
+- ✅ `StorageService` schema 新增：`workflow_definitions`（`definition_json` 存整個
+  DAG，掛回 `ctx.chat` 的 Room，未來可被 UI 查看/編輯/創建）、`workflow_runs`
+  （一次執行）、`task_node_runs`（正規化 table，每個 node 的執行狀態）、
+  `activity_log`（誰呼叫了什麼服務/tool、花多久、可搜尋——`metadata` 絕對不能塞
+  原始 API key 或完整 payload，五個索引支援搜尋）。具體欄位見 ADR-0007。**不用
+  sqlite-graph 或任何圖資料庫**——查證過，不成熟、依賴 `better-sqlite3`（Big Sur 風險），
+  而且我們的 DAG 規模用一般 SQL 就綽綽有餘。
+- ✅ 新 service `ctx.sandbox`（registry，見 ADR-0006）——**只做介面，這個 Phase 不實作
+  具體後端**。`WorkflowDefinition` 多一個 `sandboxExecutor: string | null` 欄位。
+- ✅ 純函式 `validateAcyclic(nodes, edges)`（DAG 驗證，Kahn's algorithm，先寫測試再實作，
+  同 Phase 2 套路；連帶做了 `createWorkflowDefinition`，驗證失敗會拋錯）。
+- ⬜ 一個預設 orchestration strategy plugin（`task-graph`），註冊進 `ctx.orchestrator`，
+  真正跑起來 emit `'agent/task-assigned'`（Phase 1 就保留但沒人 emit 過的事件），並透過
+  `ctx.chat.postMessage` 把進度發回房間（讓 `'chat/message'` 事件也第一次真正被觸發的路徑）。
+- ⬜ 至少跑通一個「Allen 寫前端 / Ben 寫後端」的真實範例。
+- **範圍較大，已照計畫拆成兩塊**：這次做完「registry + schema」（`ctx.orchestrator`、
+  `ctx.sandbox`、四張新表、`validateAcyclic`，113 個測試全過），「預設策略」留給下一輪，
+  符合 Section 1 的「拆到最小可執行單位」。
+
+### Phase 5.5 — 執行沙盒後端實作【新增，見 ADR-0006，實作尚未開始】
+**學習重點：** `ctx.sandbox` 的具體 executor 實作，搭配這個專案第一次真正的
+tool calling（沒有 tool calling，沙盒沒有真正的呼叫方）。
+**交付物：**
+- **Seatbelt executor**（macOS `sandbox-exec`）——這台開發機唯一原生可用的本機選項，
+  優先做。文件要誠實標注 `sandbox-exec` 是 Apple 已棄用但目前仍可用、無官方替代方案
+  的工具（見 ADR-0006 查證的具體案例）。**先寫測試證明限制真的有生效**（例如寫入
+  workspace 外的檔案要被拒絕），不能只驗證指令有跑起來就算過關。
+- **一個雲端 API executor**（例如 E2B，呼應 DeepSeek Harness 自己的 `e2b/` package、
+  openai-agents-js 官方託管 provider 清單也有它）——平台無關的保底選項。
+- `bwrap`/`Landlock` 的 `SandboxExecutor` 介面先定義，`isAvailable()` 在這台
+  （非 Linux）機器上誠實回傳 `false`，實作留給有 Linux 環境（CI 或未來部署）時再補。
+- `activity_log` 新增 `kind: 'sandboxed_execution'`。
 
 ### Phase 6 — API + 聊天 UI MVP
 **學習重點：** REST + WebSocket，前端用 React/Vite 做出類 WhatsApp 的群組介面（房間列表、選 Agent 看歷史）。

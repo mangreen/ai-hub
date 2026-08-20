@@ -11,16 +11,21 @@ declare module 'cordis' {
 }
 
 /**
- * Schema for all four Phase 4 tables in one place, per dsh-doc-standards-derived
+ * Schema for all tables in one place, per dsh-doc-standards-derived
  * practice of keeping one authoritative home for a fact rather than scattering
  * DDL across files. `room_members` is a join table for Room.memberIds
  * (domain.ts keeps that as a plain array; SQL needs a normalized table).
+ * `workflow_definitions`/`workflow_runs`/`task_node_runs`/`activity_log` are
+ * Phase 5 (see docs/adr/ADR-0005/0007) — `definition_json` stores the DAG as
+ * a JSON blob rather than normalized node/edge tables, per ADR-0007 (it's
+ * always read/written as one whole document, same shape a UI graph editor
+ * would send).
  */
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS rooms (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    sandboxed INTEGER NOT NULL
+    isolated INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS room_members (
     room_id TEXT NOT NULL REFERENCES rooms(id),
@@ -50,6 +55,49 @@ const SCHEMA_SQL = `
     size_bytes INTEGER NOT NULL,
     created_at TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS workflow_definitions (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    room_id TEXT NOT NULL REFERENCES rooms(id),
+    definition_json TEXT NOT NULL,
+    sandbox_executor TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS workflow_runs (
+    id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL REFERENCES workflow_definitions(id),
+    status TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    finished_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS task_node_runs (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES workflow_runs(id),
+    node_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    started_at TEXT,
+    finished_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS activity_log (
+    id TEXT PRIMARY KEY,
+    workflow_run_id TEXT NOT NULL REFERENCES workflow_runs(id),
+    task_node_run_id TEXT REFERENCES task_node_runs(id),
+    agent_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    target TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    duration_ms INTEGER,
+    status TEXT NOT NULL,
+    metadata TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_activity_log_workflow_run ON activity_log(workflow_run_id);
+  CREATE INDEX IF NOT EXISTS idx_activity_log_agent ON activity_log(agent_id);
+  CREATE INDEX IF NOT EXISTS idx_activity_log_kind ON activity_log(kind);
+  CREATE INDEX IF NOT EXISTS idx_activity_log_target ON activity_log(target);
+  CREATE INDEX IF NOT EXISTS idx_activity_log_started_at ON activity_log(started_at);
 `
 
 export interface AttachmentRecord {
