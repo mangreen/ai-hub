@@ -8,7 +8,7 @@ describe('createAgent', () => {
     assert.equal(agent.id, 'agent-1')
     assert.equal(agent.name, 'Allen')
     assert.equal(agent.modelRef, 'anthropic:claude')
-    assert.equal(agent.canPeek, false) // default: sandboxed by default (secure by default)
+    assert.equal(agent.canPeek, false) // default: isolated by default (secure by default)
   })
 
   test('should_respect_explicit_canPeek_when_provided', () => {

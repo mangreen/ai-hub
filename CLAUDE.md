@@ -43,7 +43,7 @@
 | 項目 | v3.0 原規範 | AI Hub 精簡版 | 為什麼調整 |
 |---|---|---|---|
 | 架構分層 | 嚴格 Hexagonal + DDD 資料夾 | Cordis service 邊界即分層（`ctx.chat` / `ctx.agent` / `ctx.model` / `ctx.storage`） | Cordis 本身就是一種輕量 hexagonal，不需要再疊一層資料夾規則 |
-| TDD | 所有功能 Red-Green-Refactor | Domain 邏輯（Agent 分配、sandbox 可見性規則）**必須**先寫測試；UI/黏合層可以先跑起來再補測試 | 單人開發，UI 反覆試錯階段寫測試效益低 |
+| TDD | 所有功能 Red-Green-Refactor | Domain 邏輯（Agent 分配、isolation 可見性規則）**必須**先寫測試；UI/黏合層可以先跑起來再補測試 | 單人開發，UI 反覆試錯階段寫測試效益低 |
 | 覆蓋率 Gate | CI 強制 80% 否則擋 merge | 目標 60–70%（僅 domain/application 層），用 `node --test --experimental-test-coverage` 看趨勢，不設 CI 硬擋 | 沒有團隊審查壓力，硬 gate 只會拖慢學習節奏；測試工具本身也不用 vitest，見下方 2.1 |
 | 整合測試環境 | Testcontainers 真實 DB | SQLite in-memory（`:memory:`）即可，Docker 留到 Phase 8 | 避開 Big Sur 上 Docker Desktop 相容性問題 |
 | 壓測 | K6 / Autocannon 正式壓測 | 延後到 Phase 8，用 Autocannon（比 K6 輕、免額外安裝） | 機器效能有限，先求功能正確 |
@@ -107,11 +107,12 @@ ai-hub/
 ├── cordis.yml                # Cordis 應用組裝設定
 ├── src/
 │   ├── plugins/
-│   │   ├── chat/              # 聊天室/訊息/sandbox 可見性 service
+│   │   ├── chat/              # 聊天室/訊息/isolation 可見性 service
 │   │   ├── agent/             # Agent 定義、任務指派、多 Agent 協作 loop
 │   │   ├── model/              # 各家模型 provider（下面拆一層）
 │   │   │   ├── ollama/
 │   │   │   ├── openai-compatible/   # Claude / GPT / Gemini / Grok / NVIDIA build 共用介面
+│   │   │   └── ...
 │   │   ├── storage/            # SQLite + 附件檔案儲存
 │   │   ├── channel/            # 外部通訊平台 adapter（whatsapp/messenger/wecom，Phase 8）
 │   │   └── marketplace/        # 插件市場：manifest、動態啟停
@@ -137,7 +138,8 @@ ai-hub/
 
 ### Phase 2 — Domain 層（TDD）✅ 完成（2026-08-16）
 **學習重點：** Room / Message / Agent / SandboxPolicy 的核心規則（例如「這個 Agent 能不能看到其他聊天室」）用純函式先寫測試再實作。
-**交付物：** domain 單元測試（無 I/O），涵蓋 sandbox 可見性、Agent 指派邏輯。
+**交付物：** domain 單元測試（無 I/O），涵蓋 isolation 可見性、Agent 指派邏輯。
+（`sandboxed` 欄位已於 2026-08-19 改名 `isolated`，見 ADR-0006、MEM-20260819-isolation-rename.md。）
 **別忘記（來自 ADR-0002）：** Message 要能標記 `sourceChannel`（哪個外部平台來的，或 null 代表 Web UI 自己發的），
 現在設計時就把這個欄位放進去，不要等 Phase 8 再回頭改。
 **實際結果：** `src/plugins/chat/domain.ts` + `src/plugins/agent/domain.ts`，27 個測試全過，100% coverage。
@@ -192,18 +194,60 @@ ai-hub/
   真正的 HTTP 上傳端點要等 Phase 6 有 `ctx.api` 才能做，Phase 4 這裡先把底層能力做好。
 - `pnpm test` 實際跑出 **82 個測試全過**。
 
-### Phase 5 — 多 Agent 協作（Agent Loop/Graph 核心）
+### Phase 5 — 多 Agent 協作（Agent Loop/Graph 核心）【進行中：registry+schema 已完成，task-graph 策略尚未開始】
 **學習重點：** 這是整個專案最有價值的部分——「範例2」的 manager-agent 模式：一個 Agent 收到任務後，自動建立聊天室、指派其他 Agent、追蹤進度。用 Cordis 的 event 系統做 Agent 間通訊。
-**交付物：** 任務圖（DAG）資料結構、manager plugin、至少跑通一個「Allen 寫前端 / Ben 寫後端」的真實範例。
+**交付物（動手寫之前，先讀 `docs/adr/ADR-0005-orchestrator-and-workflow-architecture.md`、
+`docs/adr/ADR-0007-orchestrator-implementation-and-dag-storage.md`）：**
+- ✅ 新 service `ctx.orchestrator`（registry pattern，跟 `ctx.model`/`ctx.channel` 同一套）——
+  Agent Loop/Graph 本身也是可替換插件，不是寫死在 `AgentService` 裡。**自己寫，不用
+  LangGraph.js 或 openai-agents-js**——理由跟查證過程見 ADR-0007（簡言之：兩者都會讓
+  「可替換」名存實亡，且都不完全貼合我們已經做好的 provider-中立 model 層跟
+  `node:sqlite` persistence）。
+- ✅ `StorageService` schema 新增：`workflow_definitions`（`definition_json` 存整個
+  DAG，掛回 `ctx.chat` 的 Room，未來可被 UI 查看/編輯/創建）、`workflow_runs`
+  （一次執行）、`task_node_runs`（正規化 table，每個 node 的執行狀態）、
+  `activity_log`（誰呼叫了什麼服務/tool、花多久、可搜尋——`metadata` 絕對不能塞
+  原始 API key 或完整 payload，五個索引支援搜尋）。具體欄位見 ADR-0007。**不用
+  sqlite-graph 或任何圖資料庫**——查證過，不成熟、依賴 `better-sqlite3`（Big Sur 風險），
+  而且我們的 DAG 規模用一般 SQL 就綽綽有餘。
+- ✅ 新 service `ctx.sandbox`（registry，見 ADR-0006）——**只做介面，這個 Phase 不實作
+  具體後端**。`WorkflowDefinition` 多一個 `sandboxExecutor: string | null` 欄位。
+- ✅ 純函式 `validateAcyclic(nodes, edges)`（DAG 驗證，Kahn's algorithm，先寫測試再實作，
+  同 Phase 2 套路；連帶做了 `createWorkflowDefinition`，驗證失敗會拋錯）。
+- ⬜ 一個預設 orchestration strategy plugin（`task-graph`），註冊進 `ctx.orchestrator`，
+  真正跑起來 emit `'agent/task-assigned'`（Phase 1 就保留但沒人 emit 過的事件），並透過
+  `ctx.chat.postMessage` 把進度發回房間（讓 `'chat/message'` 事件也第一次真正被觸發的路徑）。
+- ⬜ 至少跑通一個「Allen 寫前端 / Ben 寫後端」的真實範例。
+- **範圍較大，已照計畫拆成兩塊**：這次做完「registry + schema」（`ctx.orchestrator`、
+  `ctx.sandbox`、四張新表、`validateAcyclic`，113 個測試全過），「預設策略」留給下一輪，
+  符合 Section 1 的「拆到最小可執行單位」。
+
+### Phase 5.5 — 執行沙盒後端實作【新增，見 ADR-0006，實作尚未開始】
+**學習重點：** `ctx.sandbox` 的具體 executor 實作，搭配這個專案第一次真正的
+tool calling（沒有 tool calling，沙盒沒有真正的呼叫方）。
+**交付物：**
+- **Seatbelt executor**（macOS `sandbox-exec`）——這台開發機唯一原生可用的本機選項，
+  優先做。文件要誠實標注 `sandbox-exec` 是 Apple 已棄用但目前仍可用、無官方替代方案
+  的工具（見 ADR-0006 查證的具體案例）。**先寫測試證明限制真的有生效**（例如寫入
+  workspace 外的檔案要被拒絕），不能只驗證指令有跑起來就算過關。
+- **一個雲端 API executor**（例如 E2B，呼應 DeepSeek Harness 自己的 `e2b/` package、
+  openai-agents-js 官方託管 provider 清單也有它）——平台無關的保底選項。
+- `bwrap`/`Landlock` 的 `SandboxExecutor` 介面先定義，`isAvailable()` 在這台
+  （非 Linux）機器上誠實回傳 `false`，實作留給有 Linux 環境（CI 或未來部署）時再補。
+- `activity_log` 新增 `kind: 'sandboxed_execution'`。
 
 ### Phase 6 — API + 聊天 UI MVP
 **學習重點：** REST + WebSocket，前端用 React/Vite 做出類 WhatsApp 的群組介面（房間列表、選 Agent 看歷史）。
 **交付物：** 可用的 Web UI，能開房間、選模型建 Agent、收發訊息。此階段也要生出一個 `ctx.api`（HTTP router）
-service，Phase 8 的 channel adapter 會需要它來註冊 webhook route。
+service，Phase 8 的 channel adapter 會需要它來註冊 webhook route。**Phase 5 之後新增：**
+workflow definition 的 CRUD 端點（讓 UI 能查看/編輯/創建工作流程）、workflow run 狀態查詢/串流、
+activity log 搜尋端點、`ctx.orchestrator.list()` 讓 UI 顯示可選的協作策略。
 
 ### Phase 7 — 插件市場
-**學習重點：** 插件 manifest 格式、執行期動態啟停（正是 Cordis「可逆掛載」的用武之地）、sandbox 開關的 UI 化。
+**學習重點：** 插件 manifest 格式、執行期動態啟停（正是 Cordis「可逆掛載」的用武之地）、isolation 開關的 UI 化。
 **交付物：** 一個範例第三方插件（例如 code-review skill）能透過市場安裝/移除，不用重啟服務。
+**Phase 5 之後新增：** orchestration strategy 成為第三種可透過市場管理的插件類別，
+跟 model provider、channel adapter 並列。
 
 ### Phase 8 — 外部通訊平台閘道（WhatsApp / Messenger / 企業微信）【新增】
 **學習重點：** Webhook 收（驗簽 + 解析各平台不同的 payload 格式）+ REST API 送是三個平台共通的架構；

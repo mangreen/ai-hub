@@ -26,7 +26,7 @@ native binary 在 Big Sur 上直接 dyld 崩潰（見 `error/ERR-20260816-esbuil
 ## 決策 2：Schema 設計
 
 ```
-rooms(id, name, sandboxed)
+rooms(id, name, isolated)
 room_members(room_id, agent_id)   -- Room.memberIds 在 domain.ts 是陣列，SQL 用 join table 正規化
 messages(id, room_id, sender_id, content, source_channel, created_at)
 agents(id, name, model_ref, can_peek)
@@ -63,7 +63,9 @@ attachments(id, message_id, filename, mime_type, storage_path, size_bytes, creat
 - 零額外 native 依賴，跟 Big Sur 相容性問題徹底絕緣。
 - Schema 集中一處，之後要加欄位/加表，只有一個地方要改。
 - `ChatService`/`AgentService` 的方法簽章維持跟 Phase 2 的 domain.ts 一致
-  （`createRoom(id, name, sandboxed)` 等），Phase 2 寫的 27 個 domain 測試完全不用動。
+  （`createRoom(id, name, isolated)` 等），Phase 2 寫的 27 個 domain 測試完全不用動。
+  （欄位在 2026-08-19 從 `sandboxed` 改名 `isolated`，見
+  `memory/MEM-20260819-isolation-rename.md`，這裡的 schema 已更新成新名字。）
 
 **Cons：**
 - `node:sqlite` 仍是 Node 官方標記的實驗性功能，未來 Node 版本可能改 API（風險已知，

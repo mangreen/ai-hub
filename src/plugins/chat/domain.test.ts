@@ -8,12 +8,12 @@ describe('createRoom', () => {
     assert.equal(room.id, 'room-1')
     assert.equal(room.name, 'System Dev Plan')
     assert.deepEqual(room.memberIds, [])
-    assert.equal(room.sandboxed, false) // default: not sandboxed unless specified
+    assert.equal(room.isolated, false) // default: not isolated unless specified
   })
 
-  test('should_respect_explicit_sandboxed_flag_when_provided', () => {
-    const room = createRoom({ id: 'room-1', name: 'Private', sandboxed: true })
-    assert.equal(room.sandboxed, true)
+  test('should_respect_explicit_isolated_flag_when_provided', () => {
+    const room = createRoom({ id: 'room-1', name: 'Private', isolated: true })
+    assert.equal(room.isolated, true)
   })
 
   test('should_throw_when_name_is_empty', () => {
@@ -82,29 +82,29 @@ describe('addMember / isMember', () => {
   })
 })
 
-describe('canAgentViewRoom — sandbox visibility truth table', () => {
-  test('should_allow_when_member_and_room_sandboxed', () => {
-    const room = addMember(createRoom({ id: 'r', name: 'x', sandboxed: true }), 'a1')
+describe('canAgentViewRoom — isolation visibility truth table', () => {
+  test('should_allow_when_member_and_room_isolated', () => {
+    const room = addMember(createRoom({ id: 'r', name: 'x', isolated: true }), 'a1')
     assert.equal(canAgentViewRoom(room, { agentId: 'a1', canPeek: false }), true)
   })
 
-  test('should_allow_when_member_and_room_not_sandboxed', () => {
-    const room = addMember(createRoom({ id: 'r', name: 'x', sandboxed: false }), 'a1')
+  test('should_allow_when_member_and_room_not_isolated', () => {
+    const room = addMember(createRoom({ id: 'r', name: 'x', isolated: false }), 'a1')
     assert.equal(canAgentViewRoom(room, { agentId: 'a1', canPeek: false }), true)
   })
 
-  test('should_deny_when_not_member_and_room_sandboxed_even_if_agent_can_peek', () => {
-    const room = createRoom({ id: 'r', name: 'x', sandboxed: true })
+  test('should_deny_when_not_member_and_room_isolated_even_if_agent_can_peek', () => {
+    const room = createRoom({ id: 'r', name: 'x', isolated: true })
     assert.equal(canAgentViewRoom(room, { agentId: 'outsider', canPeek: true }), false)
   })
 
-  test('should_deny_when_not_member_and_room_not_sandboxed_but_agent_cannot_peek', () => {
-    const room = createRoom({ id: 'r', name: 'x', sandboxed: false })
+  test('should_deny_when_not_member_and_room_not_isolated_but_agent_cannot_peek', () => {
+    const room = createRoom({ id: 'r', name: 'x', isolated: false })
     assert.equal(canAgentViewRoom(room, { agentId: 'outsider', canPeek: false }), false)
   })
 
-  test('should_allow_when_not_member_and_room_not_sandboxed_and_agent_can_peek', () => {
-    const room = createRoom({ id: 'r', name: 'x', sandboxed: false })
+  test('should_allow_when_not_member_and_room_not_isolated_and_agent_can_peek', () => {
+    const room = createRoom({ id: 'r', name: 'x', isolated: false })
     assert.equal(canAgentViewRoom(room, { agentId: 'outsider', canPeek: true }), true)
   })
 })
