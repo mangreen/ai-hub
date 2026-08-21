@@ -194,33 +194,40 @@ ai-hub/
   真正的 HTTP 上傳端點要等 Phase 6 有 `ctx.api` 才能做，Phase 4 這裡先把底層能力做好。
 - `pnpm test` 實際跑出 **82 個測試全過**。
 
-### Phase 5 — 多 Agent 協作（Agent Loop/Graph 核心）【進行中：registry+schema 已完成，task-graph 策略尚未開始】
+### Phase 5 — 多 Agent 協作（Agent Loop/Graph 核心）✅ 完成（2026-08-20）
 **學習重點：** 這是整個專案最有價值的部分——「範例2」的 manager-agent 模式：一個 Agent 收到任務後，自動建立聊天室、指派其他 Agent、追蹤進度。用 Cordis 的 event 系統做 Agent 間通訊。
 **交付物（動手寫之前，先讀 `docs/adr/ADR-0005-orchestrator-and-workflow-architecture.md`、
 `docs/adr/ADR-0007-orchestrator-implementation-and-dag-storage.md`）：**
-- ✅ 新 service `ctx.orchestrator`（registry pattern，跟 `ctx.model`/`ctx.channel` 同一套）——
+- ✅ 新 service `ctx.orchestrator`（registry pattern，跟 `ctx.model`/`ctx.channel` 同一套，
+  外加 `createWorkflow`/`getWorkflow`/`run` 三個方法，`static inject = ['storage']`）——
   Agent Loop/Graph 本身也是可替換插件，不是寫死在 `AgentService` 裡。**自己寫，不用
-  LangGraph.js 或 openai-agents-js**——理由跟查證過程見 ADR-0007（簡言之：兩者都會讓
-  「可替換」名存實亡，且都不完全貼合我們已經做好的 provider-中立 model 層跟
-  `node:sqlite` persistence）。
+  LangGraph.js 或 openai-agents-js**——理由跟查證過程見 ADR-0007。
 - ✅ `StorageService` schema 新增：`workflow_definitions`（`definition_json` 存整個
-  DAG，掛回 `ctx.chat` 的 Room，未來可被 UI 查看/編輯/創建）、`workflow_runs`
-  （一次執行）、`task_node_runs`（正規化 table，每個 node 的執行狀態）、
-  `activity_log`（誰呼叫了什麼服務/tool、花多久、可搜尋——`metadata` 絕對不能塞
-  原始 API key 或完整 payload，五個索引支援搜尋）。具體欄位見 ADR-0007。**不用
-  sqlite-graph 或任何圖資料庫**——查證過，不成熟、依賴 `better-sqlite3`（Big Sur 風險），
-  而且我們的 DAG 規模用一般 SQL 就綽綽有餘。
-- ✅ 新 service `ctx.sandbox`（registry，見 ADR-0006）——**只做介面，這個 Phase 不實作
-  具體後端**。`WorkflowDefinition` 多一個 `sandboxExecutor: string | null` 欄位。
-- ✅ 純函式 `validateAcyclic(nodes, edges)`（DAG 驗證，Kahn's algorithm，先寫測試再實作，
-  同 Phase 2 套路；連帶做了 `createWorkflowDefinition`，驗證失敗會拋錯）。
-- ⬜ 一個預設 orchestration strategy plugin（`task-graph`），註冊進 `ctx.orchestrator`，
-  真正跑起來 emit `'agent/task-assigned'`（Phase 1 就保留但沒人 emit 過的事件），並透過
-  `ctx.chat.postMessage` 把進度發回房間（讓 `'chat/message'` 事件也第一次真正被觸發的路徑）。
-- ⬜ 至少跑通一個「Allen 寫前端 / Ben 寫後端」的真實範例。
-- **範圍較大，已照計畫拆成兩塊**：這次做完「registry + schema」（`ctx.orchestrator`、
-  `ctx.sandbox`、四張新表、`validateAcyclic`，113 個測試全過），「預設策略」留給下一輪，
-  符合 Section 1 的「拆到最小可執行單位」。
+  DAG，掛回 `ctx.chat` 的 Room）、`workflow_runs`、`task_node_runs`、`activity_log`
+  （五個索引支援搜尋，`metadata` 目前刻意留空——`kind`+`target` 已經足夠說明「呼叫了
+  什麼」，不需要更多細節就違反 4.3 節的機密規則）。**不用 sqlite-graph 或任何圖資料庫**
+  ——查證過，不成熟、依賴 `better-sqlite3`（Big Sur 風險）。
+- ✅ 新 service `ctx.sandbox`（registry，見 ADR-0006）——只有介面，具體後端留給 Phase 5.5。
+  `WorkflowDefinition` 有 `sandboxExecutor: string | null` 欄位，但 `task-graph` 策略
+  目前不使用它（沒有 tool calling，沒有東西需要被隔離執行）。
+- ✅ 純函式 `validateAcyclic`/`topologicalOrder`（DAG 驗證 + 執行順序，同一個 Kahn's
+  algorithm 內部實作共用，先寫測試再實作）、`parseModelRef`（把 `Agent.modelRef` 拆成
+  provider/model，处理了 OpenRouter 模型名稱本身帶冒號的情況）。
+- ✅ **`task-graph` 預設策略**（`src/plugins/orchestrator/task-graph/`）：依拓撲順序
+  依序執行每個 node（sequential fail-fast，不平行——這是刻意的簡化，見程式碼註解），
+  每個 node 查 Agent、解析 modelRef、呼叫 `ctx.model`、把結果透過 `ctx.chat.postMessage`
+  發回房間、寫 `workflow_runs`/`task_node_runs`/`activity_log`。**真正 emit 了
+  `'agent/task-assigned'`（Phase 1 保留至今）跟 `'chat/message'`（Phase 2 保留至今，
+  這次順手把 `ChatService.postMessage` 自己也接上這個事件，因為它才是所有訊息的
+  唯一進入點，不該由呼叫端各自負責 emit）**。
+- ✅ 「Allen 寫前端 / Ben 寫後端」範例：整合測試裡用假的 `ModelProvider`（不打真實
+  API）驗證了依賴順序正確執行、`workflow_runs`/`task_node_runs`/`activity_log` 都正確
+  記錄、訊息真的發回房間、兩個事件都真的被 emit。失敗路徑（model 呼叫失敗、Agent
+  不存在）也各有一個測試，都正確標記整個 workflow 為 `'failed'`。
+- **範圍較大，照計畫拆成兩塊完成**：這次（第二塊）新增 22 個測試（135 - 113），
+  加上 Phase 4 就有的 82 個，全部 135 個測試全過，`node:sqlite` 回傳 null-prototype
+  row 物件這件事在測試裡也踩到一次（跟 strict deepEqual 的 prototype 檢查衝突），
+  修法是比對前先用 spread 轉成 plain object，不是改實作。
 
 ### Phase 5.5 — 執行沙盒後端實作【新增，見 ADR-0006，實作尚未開始】
 **學習重點：** `ctx.sandbox` 的具體 executor 實作，搭配這個專案第一次真正的

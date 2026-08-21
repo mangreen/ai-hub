@@ -4,16 +4,20 @@
 DeepSeek Harness skills，見 CLAUDE.md 2.1 節）。系統架構圖跟 Cordis 依賴圖見
 [`docs/architecture/`](./docs/architecture/)。
 
-## 目前狀態：Phase 5 進行中 — Orchestrator/Sandbox registry + schema ✅（策略插件尚未開始）
+## 目前狀態：Phase 5 — 多 Agent 協作 ✅
 
-新增兩個 service：`ctx.orchestrator`（多 Agent 協作策略的 registry，自己寫，不用
-LangGraph.js/openai-agents-js，理由見
-[`docs/adr/ADR-0007-orchestrator-implementation-and-dag-storage.md`](./docs/adr/ADR-0007-orchestrator-implementation-and-dag-storage.md)）、
+`ctx.orchestrator`（策略 registry + workflow 持久化，自己寫不用 LangGraph.js/
+openai-agents-js，理由見
+[`docs/adr/ADR-0007-orchestrator-implementation-and-dag-storage.md`](./docs/adr/ADR-0007-orchestrator-implementation-and-dag-storage.md)）
+搭配預設的 **`task-graph` 策略**（`src/plugins/orchestrator/task-graph/`）：依拓撲順序
+執行 workflow 的每個 node，查 Agent、解析 `modelRef`、呼叫 `ctx.model`、把結果發回
+`ctx.chat`、記錄 `workflow_runs`/`task_node_runs`/`activity_log`。真正 emit 了
+`'agent/task-assigned'`（Phase 1 保留至今）跟 `'chat/message'`（Phase 2 保留至今）
+兩個事件。整合測試用假的 `ModelProvider`（不打真實 API）驗證了「Allen 寫前端 /
+Ben 寫後端」的依賴順序執行、成功/失敗路徑都對。
+
 `ctx.sandbox`（執行沙盒 registry，目前只有介面，具體後端留給 Phase 5.5，見
 [`docs/adr/ADR-0006-execution-sandbox-plugin.md`](./docs/adr/ADR-0006-execution-sandbox-plugin.md)）。
-`StorageService` schema 新增 `workflow_definitions`/`workflow_runs`/`task_node_runs`/
-`activity_log` 四張表，`validateAcyclic()` 純函式（Kahn's algorithm）驗證工作流程無環。
-**還沒做的：** 真正的 `task-graph` 預設策略插件、跑通「Allen 寫前端 / Ben 寫後端」範例。
 
 `ChatService`/`AgentService` 持久化到 SQLite（`node:sqlite`，Node 內建，理由見
 [`docs/adr/ADR-0004-storage-architecture.md`](./docs/adr/ADR-0004-storage-architecture.md)）。
@@ -82,20 +86,21 @@ model providers registered: [
   'claude'
 ]
 channel adapters registered: []
-orchestration strategies registered: []
+orchestration strategies registered: [ 'task-graph' ]
 sandbox executors registered: []
 ```
 
-`pnpm test` 預期看到 `# tests 113` `# pass 113` `# fail 0`。
+`pnpm test` 預期看到 `# tests 135` `# pass 135` `# fail 0`。
 
 ## 測試涵蓋
 
 | 檔案 | 涵蓋 |
 |---|---|
 | `src/plugins/chat/domain.ts` | `Room` / `Message` / isolation 可見性規則（`canAgentViewRoom`）— Phase 2 |
-| `src/plugins/agent/domain.ts` | `Agent` / `TaskAssignment`（Phase 5 多 Agent 協作的最小構件）— Phase 2 |
-| `src/plugins/orchestrator/domain.ts` | `WorkflowDefinition` / `validateAcyclic`（Kahn's algorithm 環偵測）— Phase 5 |
-| `src/plugins/orchestrator/index.ts` | `OrchestratorService` 的 register/get/list + effect-based dispose — Phase 5 |
+| `src/plugins/agent/domain.ts` | `Agent` / `TaskAssignment`（Phase 2）+ `parseModelRef`（Phase 5，`ctx.model` 查找用） |
+| `src/plugins/orchestrator/domain.ts` | `WorkflowDefinition` / `validateAcyclic`+`topologicalOrder`（Kahn's algorithm）— Phase 5 |
+| `src/plugins/orchestrator/index.ts` | `OrchestratorService` 的 register/get/list + createWorkflow/getWorkflow/run — Phase 5 |
+| `src/plugins/orchestrator/task-graph/index.ts` | 預設協作策略：依拓撲順序執行、事件 emit、activity_log — Phase 5 |
 | `src/plugins/sandbox/index.ts` | `SandboxService` 的 register/get/list + effect-based dispose — Phase 5 |
 | `src/plugins/model/index.ts` | `ModelService` 的 register/get/list + effect-based dispose |
 | `src/plugins/channel/index.ts` | `ChannelService` 的 register/get/list + effect-based dispose |

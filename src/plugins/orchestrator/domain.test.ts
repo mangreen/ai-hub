@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { createWorkflowDefinition, validateAcyclic } from './domain.ts'
+import { createWorkflowDefinition, validateAcyclic, topologicalOrder } from './domain.ts'
 import type { TaskNode, TaskEdge } from './domain.ts'
 
 function node(id: string, agentId = 'agent-1', task = 'do something'): TaskNode {
@@ -63,6 +63,35 @@ describe('validateAcyclic', () => {
   test('should_throw_when_node_ids_are_duplicated', () => {
     const nodes = [node('a'), node('a')]
     assert.throws(() => validateAcyclic(nodes, []))
+  })
+})
+
+describe('topologicalOrder', () => {
+  test('should_return_nodes_in_dependency_order_for_a_linear_chain', () => {
+    const nodes = [node('c'), node('a'), node('b')] // deliberately out of order
+    const edges = [edge('a', 'b'), edge('b', 'c')]
+    assert.deepEqual(topologicalOrder(nodes, edges), ['a', 'b', 'c'])
+  })
+
+  test('should_place_independent_nodes_before_their_shared_dependent', () => {
+    // a -> c, b -> c: both a and b must come before c, order between a/b doesn't matter
+    const nodes = [node('a'), node('b'), node('c')]
+    const edges = [edge('a', 'c'), edge('b', 'c')]
+    const order = topologicalOrder(nodes, edges)
+    assert.ok(order.indexOf('a') < order.indexOf('c'))
+    assert.ok(order.indexOf('b') < order.indexOf('c'))
+  })
+
+  test('should_return_all_nodes_in_any_order_when_there_are_no_edges', () => {
+    const nodes = [node('a'), node('b')]
+    const order = topologicalOrder(nodes, [])
+    assert.deepEqual([...order].sort(), ['a', 'b'])
+  })
+
+  test('should_throw_when_graph_contains_a_cycle', () => {
+    const nodes = [node('a'), node('b')]
+    const edges = [edge('a', 'b'), edge('b', 'a')]
+    assert.throws(() => topologicalOrder(nodes, edges))
   })
 })
 
