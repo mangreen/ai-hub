@@ -44,12 +44,13 @@ function assertNonBlank(value: string, field: string): void {
 
 /**
  * Kahn's algorithm: repeatedly removes nodes with no remaining incoming
- * edges. If every node gets removed, the graph is acyclic. If any remain
- * stuck (all their prerequisites are each other), there's a cycle.
+ * edges. If every node gets removed, the graph is acyclic and the removal
+ * order is a valid topological order. If any remain stuck (all their
+ * prerequisites are each other), there's a cycle.
  * @throws if an edge references a node id not present in `nodes`, if node
  * ids are duplicated, or if the graph contains a cycle (including self-loops).
  */
-export function validateAcyclic(nodes: readonly TaskNode[], edges: readonly TaskEdge[]): void {
+function kahnOrder(nodes: readonly TaskNode[], edges: readonly TaskEdge[]): string[] {
   const nodeIds = new Set(nodes.map((n) => n.id))
   if (nodeIds.size !== nodes.length) {
     throw new Error('workflow contains duplicate node ids')
@@ -69,10 +70,10 @@ export function validateAcyclic(nodes: readonly TaskNode[], edges: readonly Task
   }
 
   const queue = [...nodeIds].filter((id) => inDegree.get(id) === 0)
-  let visited = 0
+  const order: string[] = []
   while (queue.length > 0) {
     const current = queue.shift()!
-    visited++
+    order.push(current)
     for (const next of adjacency.get(current) ?? []) {
       const remaining = (inDegree.get(next) ?? 0) - 1
       inDegree.set(next, remaining)
@@ -80,9 +81,25 @@ export function validateAcyclic(nodes: readonly TaskNode[], edges: readonly Task
     }
   }
 
-  if (visited !== nodeIds.size) {
+  if (order.length !== nodeIds.size) {
     throw new Error('workflow graph contains a cycle')
   }
+  return order
+}
+
+/** @throws see kahnOrder — same validation, result discarded. */
+export function validateAcyclic(nodes: readonly TaskNode[], edges: readonly TaskEdge[]): void {
+  kahnOrder(nodes, edges)
+}
+
+/**
+ * Returns node ids in a valid execution order (every node appears after
+ * everything it depends on). Used by the task-graph strategy to decide
+ * dispatch order — see src/plugins/orchestrator/task-graph/index.ts.
+ * @throws see kahnOrder.
+ */
+export function topologicalOrder(nodes: readonly TaskNode[], edges: readonly TaskEdge[]): string[] {
+  return kahnOrder(nodes, edges)
 }
 
 /**
@@ -93,8 +110,8 @@ export function createWorkflowDefinition(params: {
   id: string
   name: string
   roomId: string
-  nodes: TaskNode[]
-  edges: TaskEdge[]
+  nodes: readonly TaskNode[]
+  edges: readonly TaskEdge[]
   sandboxExecutor?: string | null
 }): WorkflowDefinition {
   assertNonBlank(params.id, 'WorkflowDefinition.id')

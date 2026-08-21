@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { createAgent, assignTask } from './domain.ts'
+import { createAgent, assignTask, parseModelRef } from './domain.ts'
 
 describe('createAgent', () => {
   test('should_create_agent_when_all_fields_valid', () => {
@@ -22,6 +22,33 @@ describe('createAgent', () => {
 
   test('should_throw_when_modelRef_is_empty', () => {
     assert.throws(() => createAgent({ id: 'agent-1', name: 'Ben', modelRef: '' }))
+  })
+})
+
+describe('parseModelRef', () => {
+  test('should_split_on_first_colon', () => {
+    const parsed = parseModelRef('anthropic:claude-sonnet-5')
+    assert.equal(parsed.provider, 'anthropic')
+    assert.equal(parsed.model, 'claude-sonnet-5')
+  })
+
+  test('should_keep_remaining_colons_as_part_of_model_when_model_name_itself_contains_a_colon', () => {
+    // real OpenRouter model names look like this — see .tmp/test-openrouter.ts
+    const parsed = parseModelRef('openrouter:nvidia/nemotron-3-ultra-550b-a55b:free')
+    assert.equal(parsed.provider, 'openrouter')
+    assert.equal(parsed.model, 'nvidia/nemotron-3-ultra-550b-a55b:free')
+  })
+
+  test('should_throw_when_there_is_no_colon', () => {
+    assert.throws(() => parseModelRef('justamodel'))
+  })
+
+  test('should_throw_when_provider_part_is_empty', () => {
+    assert.throws(() => parseModelRef(':model'))
+  })
+
+  test('should_throw_when_model_part_is_empty', () => {
+    assert.throws(() => parseModelRef('provider:'))
   })
 })
 

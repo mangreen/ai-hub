@@ -113,6 +113,32 @@ describe('ChatService.postMessage / listMessages', () => {
       assert.throws(() => chat.postMessage('m1', 'nonexistent', 'agent-allen', 'hi'))
     })
   })
+
+  test('should_emit_chat_message_event_when_message_posted', async () => {
+    await new Promise<void>((resolve, reject) => {
+      const ctx = new Context()
+      ctx.plugin(StorageService)
+      ctx.plugin(ChatService)
+      ctx.plugin({
+        name: 'test-consumer',
+        inject: ['chat', 'storage'],
+        apply(ctx: Context) {
+          try {
+            let received: unknown
+            ctx.on('chat/message', (payload) => {
+              received = payload
+            })
+            ctx.chat.createRoom('r1', 'Team')
+            ctx.chat.postMessage('m1', 'r1', 'agent-allen', 'hello')
+            assert.deepEqual(received, { roomId: 'r1', from: 'agent-allen', content: 'hello' })
+            resolve()
+          } catch (err) {
+            reject(err)
+          }
+        },
+      })
+    })
+  })
 })
 
 describe('ChatService.canAgentViewRoom', () => {

@@ -58,3 +58,25 @@ export function assignTask(fromAgentId: string, toAgentId: string, task: string)
   assertNonBlank(task, 'task')
   return { fromAgentId, toAgentId, task }
 }
+
+export interface ParsedModelRef {
+  /** Name to look up via ctx.model.get(...) — see model/index.ts's ModelService. */
+  readonly provider: string
+  /** Passed as the `model` argument to ModelProvider.complete(messages, model). */
+  readonly model: string
+}
+
+/**
+ * Splits on the FIRST colon only — some real model names contain colons
+ * themselves (e.g. OpenRouter's "nvidia/nemotron-3-ultra-550b-a55b:free",
+ * exercised in .tmp/test-openrouter.ts), so splitting on every colon would
+ * mangle those.
+ * @throws if there's no colon, or if either side of it is empty.
+ */
+export function parseModelRef(modelRef: string): ParsedModelRef {
+  const i = modelRef.indexOf(':')
+  if (i <= 0 || i === modelRef.length - 1) {
+    throw new Error(`invalid modelRef "${modelRef}" — expected "provider:model" format`)
+  }
+  return { provider: modelRef.slice(0, i), model: modelRef.slice(i + 1) }
+}

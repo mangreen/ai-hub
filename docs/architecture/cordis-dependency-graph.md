@@ -7,10 +7,12 @@
 - **實線箭頭 = `ctx.plugin()` 掛載**（root Context 建立這個 plugin/service）
 - **虛線箭頭 = `inject` 依賴宣告**（Cordis 保證被 inject 的 service 先掛載好，這個 plugin 才會執行）
 
-**Phase 4 之後，`ChatService`/`AgentService` 都 `static inject = ['storage']`**。
-**Phase 5（規劃中，見 ADR-0005/0007）會新增 `ctx.orchestrator`；同樣是 Phase 5（介面）
-/Phase 5.5（後端，見 ADR-0006）會新增 `ctx.sandbox`**——圖中用虛線標示尚未實作的
-部分，跟已實作的五個 service 放在同一張圖，方便看出「加上 Phase 5/5.5 之後」整體長怎樣。
+**Phase 4 之後，`ChatService`/`AgentService` 都 `static inject = ['storage']`；
+Phase 5 起 `OrchestratorService` 也是**（第三個）。`ctx.sandbox` 目前還沒有任何
+service/plugin inject 它——`task-graph` 策略不需要它（沒有 tool calling，沒有東西
+需要被隔離執行），只有 `WorkflowDefinition.sandboxExecutor` 這個欄位存在，尚未被
+使用。Phase 5.5（見 ADR-0006）的 executor plugin 部分圖中仍標示「規劃中」，
+因為那部分真的還沒寫。
 
 ```mermaid
 flowchart TD
@@ -22,8 +24,8 @@ flowchart TD
         model["ModelService<br/>ctx.model"]
         storage["StorageService<br/>ctx.storage"]
         channel["ChannelService<br/>ctx.channel"]
-        orchestrator["OrchestratorService<br/>ctx.orchestrator<br/>Phase 5 規劃中 · ADR-0005/0007"]
-        sandbox["SandboxService<br/>ctx.sandbox<br/>Phase 5 規劃中 · ADR-0006"]
+        orchestrator["OrchestratorService<br/>ctx.orchestrator<br/>static inject: ['storage']"]
+        sandbox["SandboxService<br/>ctx.sandbox"]
     end
 
     bootcheck["kernel-boot-check<br/>object-form plugin<br/>src/index.ts"]
@@ -33,18 +35,21 @@ flowchart TD
     root -->|"ctx.plugin() 掛載"| model
     root -->|"ctx.plugin() 掛載"| storage
     root -->|"ctx.plugin() 掛載"| channel
-    root -.->|"ctx.plugin() 掛載（規劃中）"| orchestrator
-    root -.->|"ctx.plugin() 掛載（規劃中）"| sandbox
+    root -->|"ctx.plugin() 掛載"| orchestrator
+    root -->|"ctx.plugin() 掛載"| sandbox
     root -->|"ctx.plugin() 掛載"| bootcheck
 
     chat -.->|"static inject<br/>Phase 4"| storage
     agentSvc -.->|"static inject<br/>Phase 4"| storage
+    orchestrator -.->|"static inject<br/>Phase 5"| storage
 
     bootcheck -.->|"inject"| chat
     bootcheck -.->|"inject"| agentSvc
     bootcheck -.->|"inject"| model
     bootcheck -.->|"inject"| storage
     bootcheck -.->|"inject"| channel
+    bootcheck -.->|"inject"| orchestrator
+    bootcheck -.->|"inject"| sandbox
 
     subgraph ModelProviders["七個 Model Provider Plugins — Phase 3 DONE"]
         ollamaP["ollama-provider"]
@@ -64,32 +69,31 @@ flowchart TD
     openrouterP -.->|"inject: ['model']"| model
     claudeP -.->|"inject: ['model']"| model
 
-    subgraph OrchestratorPlugins["Orchestration Strategy Plugins — Phase 5 規劃中"]
+    subgraph OrchestratorPlugins["Orchestration Strategy Plugins — Phase 5 DONE"]
         taskGraphP["task-graph-strategy<br/>預設策略，自己寫"]
     end
 
-    taskGraphP -.->|"inject: ['orchestrator']<br/>呼叫 ctx.orchestrator.register()"| orchestrator
-    taskGraphP -.->|"static inject（規劃中）：agent/model/chat/storage/sandbox 全都要"| agentSvc
+    taskGraphP -.->|"inject: ['orchestrator', 'agent', 'model', 'chat', 'storage']"| orchestrator
+    taskGraphP -.-> agentSvc
     taskGraphP -.-> model
     taskGraphP -.-> chat
     taskGraphP -.-> storage
-    taskGraphP -.-> sandbox
 
     subgraph SandboxPlugins["Sandbox Executor Plugins — Phase 5.5 規劃中 · ADR-0006"]
         seatbeltP["seatbelt-executor<br/>macOS 本機"]
         cloudP["cloud-executor<br/>例如 E2B"]
     end
 
-    seatbeltP -.->|"inject: ['sandbox']<br/>呼叫 ctx.sandbox.register()"| sandbox
-    cloudP -.->|"inject: ['sandbox']"| sandbox
+    seatbeltP -.->|"inject: ['sandbox']（規劃中）<br/>呼叫 ctx.sandbox.register()"| sandbox
+    cloudP -.->|"inject: ['sandbox']（規劃中）"| sandbox
 
     subgraph Future["規劃中的 inject 關係（尚未實作，虛線）"]
         whatsappP["whatsapp adapter plugin<br/>Phase 8"]
         wecomP["wecom adapter plugin<br/>Phase 8"]
     end
 
-    whatsappP -.->|"inject: ['channel']<br/>呼叫 ctx.channel.register()"| channel
-    wecomP -.->|"inject: ['channel']"| channel
+    whatsappP -.->|"inject: ['channel']（規劃中）<br/>呼叫 ctx.channel.register()"| channel
+    wecomP -.->|"inject: ['channel']（規劃中）"| channel
 ```
 
 ## 為什麼 chat/agent 現在要 inject storage，但 model/channel 不用
@@ -97,9 +101,11 @@ flowchart TD
 - `ChatService`/`AgentService` 的方法（`createRoom`、`postMessage`、`createAgent` 等）
   **在執行當下就要真的讀寫資料庫**——沒有 `ctx.storage` 這些方法完全無法運作，所以宣告成
   `static inject`，讓 Cordis 保證掛載順序正確，而不是自己祈禱 `StorageService` 剛好先掛載好。
-- `ModelService`/`ChannelService`/`ctx.orchestrator`/`ctx.sandbox` 都是 registry，
-  `register()`/`get()`/`list()` 都只操作自己內部的 `Map`，不需要真的依賴誰——沒有理由加
-  `inject`（YAGNI）。這是 Cordis 的 registry pattern 第四次被驗證。
+- `ModelService`/`ChannelService`/`ctx.sandbox` 是純 registry，`register()`/`get()`/
+  `list()` 都只操作自己內部的 `Map`，不需要真的依賴誰——沒有理由加 `inject`（YAGNI）。
+  `ctx.orchestrator` 是例外：它除了是策略 registry，也身兼 `WorkflowDefinition`
+  持久化（`createWorkflow`/`getWorkflow`/`run`），所以需要 `static inject = ['storage']`
+  ——這個決定記錄在 MEM-20260820-phase5-task-graph-strategy.md。
 
 ## `static inject` 是怎麼驗證出來的
 
@@ -110,14 +116,18 @@ Service class（`extends Service`）宣告依賴用的是**靜態屬性** `stati
 在寫 `ChatService` 之前先寫了一個最小重現腳本驗證過，不是憑印象假設 API 存在
 （見 `memory/MEM-20260817-phase4-storage-and-static-inject.md`）。
 
-## Phase 5 的 `task-graph-strategy` 會是本圖 inject 關係最多的 plugin
+## `task-graph-strategy` 是本圖 inject 關係最多的 plugin（已實作）
 
-跟目前所有 provider/adapter plugin 只 inject 一個 service 不同，`task-graph-strategy`
-（見 ADR-0005/0007）需要同時 inject 五個既有 service——`agent`（查 Agent 定義）、`model`
-（真的發起模型呼叫）、`chat`（把進度發回房間）、`storage`（記錄 workflow 執行狀態跟
-activity log）、`sandbox`（如果這個 workflow 選了要用執行沙盒）。這是它獨立成一個
-orchestrator 插件、而不是塞進其中任何一個既有 service 的原因——同時依賴五個 service
-的邏輯，放進任何一個既有 service 裡都會讓那個 service 的職責範圍失控。
+跟其他 provider/adapter plugin 只 inject 一個 service 不同，`task-graph-strategy`
+（`src/plugins/orchestrator/task-graph/index.ts`）真的同時 inject 五個既有
+service——`orchestrator`（呼叫 `register()` 把自己註冊進去）、`agent`（查 Agent
+定義、解析 `modelRef`）、`model`（真的發起模型呼叫）、`chat`（把結果透過
+`postMessage` 發回房間）、`storage`（記錄 `workflow_runs`/`task_node_runs`/
+`activity_log`）。這是它獨立成一個 orchestrator 插件、而不是塞進其中任何一個既有
+service 的原因——同時依賴五個 service 的邏輯，放進任何一個既有 service 裡都會讓
+那個 service 的職責範圍失控。**注意它不 inject `sandbox`**——`WorkflowDefinition`
+雖然有 `sandboxExecutor` 欄位，但目前沒有 tool calling，沒有東西需要透過沙盒執行，
+所以這個欄位目前是預留但未使用。
 
 `ctx.sandbox` 本身在 Phase 5 只有介面（`SandboxService` registry），實際的
 `seatbelt-executor`/`cloud-executor` 插件是 Phase 5.5 才會出現（見 ADR-0006）——

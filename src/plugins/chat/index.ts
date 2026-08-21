@@ -6,10 +6,10 @@ declare module 'cordis' {
     chat: ChatService
   }
   interface Events {
-    // Not yet emitted by anything — reserved contract, see postMessage()'s
-    // TODO. Fires for ANY message entering a room, regardless of source
-    // (Web UI, an Agent, or an external channel adapter from Phase 8), so
-    // downstream listeners never need to know which source it came from.
+    // Fires for ANY message entering a room, regardless of source (Web UI,
+    // an Agent, or an external channel adapter from Phase 8) — emitted from
+    // postMessage(), the single choke point every message goes through, so
+    // callers never need to know or care who's listening.
     'chat/message'(payload: { roomId: string; from: string; content: string }): void
   }
 }
@@ -90,12 +90,11 @@ export class ChatService extends Service {
    */
   postMessage(id: string, roomId: string, senderId: string, content: string, sourceChannel: string | null = null): Message {
     const message = createMessage({ id, roomId, senderId, content, sourceChannel })
-    // TODO(Phase 5+): emit 'chat/message' here once something actually
-    // listens for it (multi-agent orchestration).
     this.ctx.storage.run(
       'INSERT INTO messages (id, room_id, sender_id, content, source_channel, created_at) VALUES (?, ?, ?, ?, ?, ?)',
       [message.id, message.roomId, message.senderId, message.content, message.sourceChannel, new Date().toISOString()],
     )
+    this.ctx.emit('chat/message', { roomId: message.roomId, from: message.senderId, content: message.content })
     return message
   }
 

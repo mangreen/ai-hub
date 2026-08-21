@@ -24,18 +24,18 @@ flowchart TD
         channel["ctx.channel<br/>registry, effect-based<br/>DONE"]
     end
 
-    subgraph OrchestratorLayer["ctx.orchestrator — Phase 5 規劃中 · ADR-0005/0007"]
-        orchestrator["ctx.orchestrator<br/>registry, effect-based"]
-        taskgraph["task-graph strategy<br/>自己寫，不用 LangGraph/openai-agents-js"]
+    subgraph OrchestratorLayer["ctx.orchestrator — Phase 5 DONE · ADR-0005/0007"]
+        orchestrator["ctx.orchestrator<br/>registry + workflow persistence<br/>createWorkflow/getWorkflow/run"]
+        taskgraph["task-graph strategy<br/>自己寫，不用 LangGraph/openai-agents-js<br/>DONE"]
     end
 
-    subgraph SandboxLayer["ctx.sandbox — Phase 5(介面)/5.5(後端) 規劃中 · ADR-0006"]
-        sandbox["ctx.sandbox<br/>registry, effect-based"]
-        seatbelt["Seatbelt executor<br/>macOS sandbox-exec"]
-        cloudsandbox["雲端 API executor<br/>例如 E2B"]
+    subgraph SandboxLayer["ctx.sandbox — Phase 5 介面 DONE / 5.5 後端規劃中 · ADR-0006"]
+        sandbox["ctx.sandbox<br/>registry, effect-based<br/>DONE，目前無 executor 註冊"]
+        seatbelt["Seatbelt executor<br/>macOS sandbox-exec<br/>Phase 5.5 規劃中"]
+        cloudsandbox["雲端 API executor<br/>例如 E2B<br/>Phase 5.5 規劃中"]
     end
 
-    subgraph WorkflowStorage["Workflow / Activity — Phase 5 規劃中"]
+    subgraph WorkflowStorage["Workflow / Activity — Phase 5 DONE"]
         workflowdef["workflow_definitions（JSON）<br/>+ workflow_runs<br/>+ task_node_runs"]
         activitylog["activity_log<br/>誰呼叫了什麼/花多久/可搜尋"]
     end
@@ -86,15 +86,15 @@ flowchart TD
     storage --> attachments
 
     orchestrator -->|register| taskgraph
-    taskgraph -.->|"inject: agent/model/chat/storage"| agent
-    taskgraph -.->|dispatch task| model
-    taskgraph -.->|postMessage 進度| chat
-    taskgraph -.->|寫入| workflowdef
-    taskgraph -.->|寫入| activitylog
-    taskgraph -.->|"per-workflow 選擇 sandboxExecutor"| sandbox
+    taskgraph -->|"inject: agent/model/chat/storage"| agent
+    taskgraph -->|"呼叫 .complete()"| model
+    taskgraph -->|postMessage 進度| chat
+    taskgraph -->|寫入| workflowdef
+    taskgraph -->|寫入| activitylog
+    taskgraph -.->|"per-workflow 可選 sandboxExecutor（目前未使用，無 tool calling）"| sandbox
 
-    sandbox -->|register| seatbelt
-    sandbox -->|register| cloudsandbox
+    sandbox -.->|"register（規劃中）"| seatbelt
+    sandbox -.->|"register（規劃中）"| cloudsandbox
 
     agent -.->|assignTask 用到| model
     chat -.->|canAgentViewRoom 檢查| agent
@@ -111,8 +111,9 @@ flowchart TD
 | `ctx.model` | 已實作（registry，effect-based） | Phase 1 骨架 + Phase 3（七個 provider） | `src/plugins/model/` |
 | `ctx.storage` | 已實作 | Phase 1 骨架 + Phase 4 SQLite 實作 | `src/plugins/storage/` |
 | `ctx.channel` | 已實作（registry，effect-based） | Phase 1，見 ADR-0002 | `src/plugins/channel/` |
-| `ctx.orchestrator` | 規劃中，設計已定案 | Phase 5，見 ADR-0005/0007 | `src/plugins/orchestrator/`（尚未建立） |
-| `ctx.sandbox` | 規劃中，設計已定案 | 介面：Phase 5；後端：Phase 5.5，見 ADR-0006 | `src/plugins/sandbox/`（尚未建立） |
+| `ctx.orchestrator` | 已實作（registry + workflow 持久化） | Phase 5，見 ADR-0005/0007 | `src/plugins/orchestrator/` |
+| `task-graph` 策略插件 | 已實作 | Phase 5 | `src/plugins/orchestrator/task-graph/` |
+| `ctx.sandbox` | 已實作（僅介面，無 executor） | Phase 5；後端：Phase 5.5，見 ADR-0006 | `src/plugins/sandbox/` |
 | workflow_definitions / runs / activity_log | 規劃中 | Phase 5，見 ADR-0005 | `StorageService` schema 擴充 |
 | Model provider 插件（7 個） | 已實作 | Phase 3，見 ADR-0003 | `src/plugins/model/{ollama,openai,gemini,grok,nvidia-nim,openrouter,claude}/` |
 | Channel adapter 插件 | 規劃中 | Phase 8，見 ADR-0002 | `src/plugins/channel/{whatsapp,messenger,wecom}/` |
