@@ -29,7 +29,7 @@ Anthropic 自己的 Messages API 格式（`system` 是獨立欄位、`max_tokens
 
 ## 決策
 
-```
+```bash
 src/plugins/model/
   types.ts                    共用的 ChatMessage / ChatCompletionResult 型別
   openai-compatible/

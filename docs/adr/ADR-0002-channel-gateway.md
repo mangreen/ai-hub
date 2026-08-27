@@ -48,7 +48,7 @@ interface ChannelAdapter {
 
 Room/Agent 需要能夠關聯到 0 或多個外部身分：
 
-```
+```ts
 ExternalIdentity {
   channel: 'whatsapp' | 'messenger' | 'wecom'
   externalUserId: string   // wa_id / PSID / WeCom userid

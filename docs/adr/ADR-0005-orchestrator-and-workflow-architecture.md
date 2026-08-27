@@ -50,7 +50,7 @@ Phase 5 只會實作**一個**策略（`task-graph`，就是原本規劃的 mana
 
 **決策：** 比照 Airflow/Temporal/n8n 的慣例，拆成兩層：
 
-```
+```sql
 WorkflowDefinition   -- 圖本身：nodes + edges，可被人類或 manager agent 創建/編輯
   id, name, roomId, nodes: TaskNode[], edges: TaskEdge[], createdAt, updatedAt
 
@@ -82,7 +82,7 @@ TaskNodeRun           -- 每次 run 裡，每個 node 的執行狀態
 
 **決策：**
 
-```
+```sql
 activity_log
   id, workflow_run_id, task_node_run_id, agent_id,
   kind         -- 'model_call' | 'tool_call' | 'external_service'

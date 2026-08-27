@@ -29,10 +29,11 @@ flowchart TD
         taskgraph["task-graph strategy<br/>自己寫，不用 LangGraph/openai-agents-js<br/>DONE"]
     end
 
-    subgraph SandboxLayer["ctx.sandbox — Phase 5 介面 DONE / 5.5 後端規劃中 · ADR-0006"]
-        sandbox["ctx.sandbox<br/>registry, effect-based<br/>DONE，目前無 executor 註冊"]
-        seatbelt["Seatbelt executor<br/>macOS sandbox-exec<br/>Phase 5.5 規劃中"]
-        cloudsandbox["雲端 API executor<br/>例如 E2B<br/>Phase 5.5 規劃中"]
+    subgraph SandboxLayer["ctx.sandbox — Phase 5.5 DONE（Seatbelt/Docker，未在真實環境驗證）· ADR-0006/0008"]
+        sandbox["ctx.sandbox<br/>registry, effect-based<br/>DONE"]
+        seatbelt["Seatbelt executor<br/>macOS sandbox-exec<br/>DONE，需 pnpm verify:seatbelt 驗證"]
+        docker["Docker executor<br/>本機 Docker Desktop<br/>DONE，需 pnpm verify:docker 驗證"]
+        cloudsandbox["雲端 API executor<br/>例如 E2B<br/>延後（ADR-0008）"]
     end
 
     subgraph WorkflowStorage["Workflow / Activity — Phase 5 DONE"]
@@ -93,8 +94,9 @@ flowchart TD
     taskgraph -->|寫入| activitylog
     taskgraph -.->|"per-workflow 可選 sandboxExecutor（目前未使用，無 tool calling）"| sandbox
 
-    sandbox -.->|"register（規劃中）"| seatbelt
-    sandbox -.->|"register（規劃中）"| cloudsandbox
+    sandbox -->|register| seatbelt
+    sandbox -->|register| docker
+    sandbox -.->|"register（延後）"| cloudsandbox
 
     agent -.->|assignTask 用到| model
     chat -.->|canAgentViewRoom 檢查| agent
@@ -113,7 +115,10 @@ flowchart TD
 | `ctx.channel` | 已實作（registry，effect-based） | Phase 1，見 ADR-0002 | `src/plugins/channel/` |
 | `ctx.orchestrator` | 已實作（registry + workflow 持久化） | Phase 5，見 ADR-0005/0007 | `src/plugins/orchestrator/` |
 | `task-graph` 策略插件 | 已實作 | Phase 5 | `src/plugins/orchestrator/task-graph/` |
-| `ctx.sandbox` | 已實作（僅介面，無 executor） | Phase 5；後端：Phase 5.5，見 ADR-0006 | `src/plugins/sandbox/` |
+| `ctx.sandbox` | 已實作 | Phase 5，見 ADR-0006 | `src/plugins/sandbox/` |
+| Seatbelt executor | 已實作（未在真實 macOS 環境驗證） | Phase 5.5，見 ADR-0008 | `src/plugins/sandbox/seatbelt/` |
+| Docker executor | 已實作（未在真實 Docker 環境驗證） | Phase 5.5，見 ADR-0008 | `src/plugins/sandbox/docker/` |
+| 雲端 API executor（E2B） | 延後 | Phase 5.5，見 ADR-0008 | `src/plugins/sandbox/`（尚未建立） |
 | workflow_definitions / runs / activity_log | 規劃中 | Phase 5，見 ADR-0005 | `StorageService` schema 擴充 |
 | Model provider 插件（7 個） | 已實作 | Phase 3，見 ADR-0003 | `src/plugins/model/{ollama,openai,gemini,grok,nvidia-nim,openrouter,claude}/` |
 | Channel adapter 插件 | 規劃中 | Phase 8，見 ADR-0002 | `src/plugins/channel/{whatsapp,messenger,wecom}/` |

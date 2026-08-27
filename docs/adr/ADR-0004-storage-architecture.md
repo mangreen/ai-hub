@@ -25,7 +25,7 @@ native binary 在 Big Sur 上直接 dyld 崩潰（見 `error/ERR-20260816-esbuil
 
 ## 決策 2：Schema 設計
 
-```
+```ts
 rooms(id, name, isolated)
 room_members(room_id, agent_id)   -- Room.memberIds 在 domain.ts 是陣列，SQL 用 join table 正規化
 messages(id, room_id, sender_id, content, source_channel, created_at)

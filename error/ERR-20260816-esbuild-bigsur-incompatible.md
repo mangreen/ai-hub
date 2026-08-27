@@ -5,7 +5,7 @@ Severity: High
 ## Description
 在 macOS Big Sur (11.7.11) 上執行 `pnpm install` 時，`esbuild@0.28.2` 的 postinstall script 失敗：
 
-```
+```bash
 dyld: Symbol not found: _SecTrustCopyCertificateChain
   Referenced from: .../esbuild/bin/esbuild (which was built for Mac OS X 12.0)
   Expected in: /System/Library/Frameworks/Security.framework/Versions/A/Security
