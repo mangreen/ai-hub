@@ -23,6 +23,8 @@ import * as nvidiaNimProvider from './plugins/model/nvidia-nim/index.ts'
 import * as openrouterProvider from './plugins/model/openrouter/index.ts'
 import * as claudeProvider from './plugins/model/claude/index.ts'
 import * as taskGraphStrategy from './plugins/orchestrator/task-graph/index.ts'
+import * as seatbeltExecutor from './plugins/sandbox/seatbelt/index.ts'
+import * as dockerExecutor from './plugins/sandbox/docker/index.ts'
 
 const ctx = new Context()
 
@@ -51,6 +53,13 @@ ctx.plugin(claudeProvider)
 // framework, and src/plugins/orchestrator/task-graph/index.ts for the
 // execution logic itself.
 ctx.plugin(taskGraphStrategy)
+
+// Phase 5.5 sandbox executors — both register regardless of platform, same
+// "fail loud on real use, not silent at boot" reasoning as the model
+// providers above. isAvailable() reports the real answer per-executor; see
+// docs/adr/ADR-0006-execution-sandbox-plugin.md.
+ctx.plugin(seatbeltExecutor)
+ctx.plugin(dockerExecutor)
 
 // `inject` guarantees this only runs once all seven services above are
 // mounted. The original worked example of this pattern (a Phase 0 demo

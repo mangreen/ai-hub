@@ -8,11 +8,12 @@
 - **虛線箭頭 = `inject` 依賴宣告**（Cordis 保證被 inject 的 service 先掛載好，這個 plugin 才會執行）
 
 **Phase 4 之後，`ChatService`/`AgentService` 都 `static inject = ['storage']`；
-Phase 5 起 `OrchestratorService` 也是**（第三個）。`ctx.sandbox` 目前還沒有任何
-service/plugin inject 它——`task-graph` 策略不需要它（沒有 tool calling，沒有東西
-需要被隔離執行），只有 `WorkflowDefinition.sandboxExecutor` 這個欄位存在，尚未被
-使用。Phase 5.5（見 ADR-0006）的 executor plugin 部分圖中仍標示「規劃中」，
-因為那部分真的還沒寫。
+Phase 5 起 `OrchestratorService` 也是**（第三個）。`ctx.sandbox` 在 Phase 5.5
+補上了 `seatbelt-executor`/`docker-executor` 兩個真的會 `inject: ['sandbox']`
+的 plugin（見下圖），但**還沒有任何東西 inject `ctx.sandbox` 本身**——
+`task-graph` 策略目前不需要它（沒有 tool calling，沒有東西需要被隔離執行），
+只有 `WorkflowDefinition.sandboxExecutor` 這個欄位存在，尚未被使用。雲端 API
+executor（例如 E2B）延後，圖中仍標示「延後」，原因見 ADR-0008。
 
 ```mermaid
 flowchart TD
@@ -79,13 +80,15 @@ flowchart TD
     taskGraphP -.-> chat
     taskGraphP -.-> storage
 
-    subgraph SandboxPlugins["Sandbox Executor Plugins — Phase 5.5 規劃中 · ADR-0006"]
+    subgraph SandboxPlugins["Sandbox Executor Plugins — Phase 5.5 DONE（未在真實環境驗證）· ADR-0008"]
         seatbeltP["seatbelt-executor<br/>macOS 本機"]
-        cloudP["cloud-executor<br/>例如 E2B"]
+        dockerP["docker-executor<br/>本機 Docker Desktop"]
+        cloudP["cloud-executor<br/>例如 E2B（延後）"]
     end
 
-    seatbeltP -.->|"inject: ['sandbox']（規劃中）<br/>呼叫 ctx.sandbox.register()"| sandbox
-    cloudP -.->|"inject: ['sandbox']（規劃中）"| sandbox
+    seatbeltP -.->|"inject: ['sandbox']<br/>呼叫 ctx.sandbox.register()"| sandbox
+    dockerP -.->|"inject: ['sandbox']"| sandbox
+    cloudP -.->|"inject: ['sandbox']（延後）"| sandbox
 
     subgraph Future["規劃中的 inject 關係（尚未實作，虛線）"]
         whatsappP["whatsapp adapter plugin<br/>Phase 8"]
@@ -129,9 +132,7 @@ service 的原因——同時依賴五個 service 的邏輯，放進任何一個
 雖然有 `sandboxExecutor` 欄位，但目前沒有 tool calling，沒有東西需要透過沙盒執行，
 所以這個欄位目前是預留但未使用。
 
-`ctx.sandbox` 本身在 Phase 5 只有介面（`SandboxService` registry），實際的
-`seatbelt-executor`/`cloud-executor` 插件是 Phase 5.5 才會出現（見 ADR-0006）——
-沒有 tool calling，沙盒沒有真正的呼叫方，介面先定義、後端等真的用得到再做。
+`ctx.sandbox` 在 Phase 5.5 補上了兩個真的能用的 executor：`seatbelt-executor`（macOS）跟 `docker-executor`（本機 Docker Desktop）——見 ADR-0008。**「介面能不能建、能不能驗證」不需要等 tool calling**，這是上一輪的說法需要更正的地方；tool calling 只影響「`task-graph`什麼時候真的呼叫 `ctx.sandbox`」，那條 inject 線（圖上 `taskGraphP` 到 `sandbox` 之間）目前還不存在，因為還沒有東西需要被隔離執行。雲端 API executor（例如 E2B）延後，原因見 ADR-0008。
 
 ## 測試裡也用同一套 inject 機制
 

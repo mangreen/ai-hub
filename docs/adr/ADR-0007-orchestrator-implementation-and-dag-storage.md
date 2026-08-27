@@ -96,7 +96,7 @@ openai-agents-js 的 `UnixLocalSandboxClient`/`DockerSandboxClient`/雲端 provi
 ADR-0005 已經決定要拆 Definition/Run 兩層，但沒把「nodes/edges 到底存成 JSON
 還是正規化 table」講死。現在定案：
 
-```
+```sql
 workflow_definitions(id, name, room_id, definition_json, created_at, updated_at)
   -- definition_json = { nodes: [{id, agentId, task}], edges: [{from, to}] }
   -- 整個 DAG 定義存一個 JSON 欄位，不拆成 task_nodes/task_edges 兩張表

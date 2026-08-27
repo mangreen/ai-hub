@@ -213,7 +213,7 @@ importers:
     devDependencies:
       '@types/node':
         specifier: ^26.2.0
-        version: 26.2.0
+        version: 26.3.0
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
@@ -223,8 +223,8 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@types/node@26.2.0':
-    resolution: {integrity: sha512-5IviulTZeRNp2vAJ514cc/HUlY5nZ9fCbq9DMyC52BrhFZACo3nI0R7qBxhQmo/d27NFe96ur/b7Wwxklda+kg==}
+  '@types/node@26.3.0':
+    resolution: {integrity: sha512-L3fgrnchriRC2ExBflb8j4uZZURHZfQsmQeyVzhjcHW4kkwVyo8/0h1B2MVzMTrYUJYu6G7EWs14hW/L9putqw==}
 
   cordis@4.0.0-rc.8:
     resolution: {integrity: sha512-vXaYK6XZJlIFTnODp4Rd973Qnd/gm3cwFzWsMTaeu6cQQheA7N+aA0GqHRNl0cFIrxMXWU8dst1ZXHlUQvfyRw==}
@@ -253,7 +253,7 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@types/node@26.2.0':
+  '@types/node@26.3.0':
     dependencies:
       undici-types: 8.3.0
 

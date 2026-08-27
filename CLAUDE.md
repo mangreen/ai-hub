@@ -93,7 +93,7 @@ DeepSeek Harness 的倉庫在 `.agents/skills` 下有 11 個 SKILL.md（`dsh-arc
 
 ## 3. 目錄結構（Cordis 化版本）
 
-```
+```bash
 ai-hub/
 ├── CLAUDE.md                 # 本檔案
 ├── README.md
@@ -229,19 +229,36 @@ ai-hub/
   row 物件這件事在測試裡也踩到一次（跟 strict deepEqual 的 prototype 檢查衝突），
   修法是比對前先用 spread 轉成 plain object，不是改實作。
 
-### Phase 5.5 — 執行沙盒後端實作【新增，見 ADR-0006，實作尚未開始】
-**學習重點：** `ctx.sandbox` 的具體 executor 實作，搭配這個專案第一次真正的
-tool calling（沒有 tool calling，沙盒沒有真正的呼叫方）。
+### Phase 5.5 — 執行沙盒後端實作 ✅ Seatbelt + Docker 完成（2026-08-21，Docker 已在真實環境驗證，Seatbelt 修過一個真的 bug、待重新驗證）；E2B 延後；見 ADR-0008
+**學習重點：** `ctx.sandbox` 的具體 executor 實作。**更正上一輪的說法**：這個 Phase
+不需要等 tool calling——`SandboxExecutor.execute()` 是通用的「執行一個指令」介面，
+建造/驗證 executor 本身跟「誰會呼叫它」無關，tool calling 只影響「接進 `task-graph`
+的哪個環節」，那件事才需要等 tool calling 設計出來。
 **交付物：**
-- **Seatbelt executor**（macOS `sandbox-exec`）——這台開發機唯一原生可用的本機選項，
-  優先做。文件要誠實標注 `sandbox-exec` 是 Apple 已棄用但目前仍可用、無官方替代方案
-  的工具（見 ADR-0006 查證的具體案例）。**先寫測試證明限制真的有生效**（例如寫入
-  workspace 外的檔案要被拒絕），不能只驗證指令有跑起來就算過關。
-- **一個雲端 API executor**（例如 E2B，呼應 DeepSeek Harness 自己的 `e2b/` package、
-  openai-agents-js 官方託管 provider 清單也有它）——平台無關的保底選項。
-- `bwrap`/`Landlock` 的 `SandboxExecutor` 介面先定義，`isAvailable()` 在這台
-  （非 Linux）機器上誠實回傳 `false`，實作留給有 Linux 環境（CI 或未來部署）時再補。
-- `activity_log` 新增 `kind: 'sandboxed_execution'`。
+- ✅ **Seatbelt executor**（macOS `sandbox-exec`）——SBPL profile 設計參考 Anthropic
+  自己的 production 專案 `sandbox-runtime`（查證來源見 ADR-0008），deny-by-default +
+  workspace allow-list + git hooks/config 強制 deny。純函式 `buildSeatbeltProfile()`
+  完整測試；`execute()` 用 injectable spawn 測試呼叫的指令/參數對不對。已知限制
+  （誠實列出）：v1 不限制網路、沒有防 file-write-unlink bypass。
+  **第一次在真實 Mac 上跑 `pnpm verify:seatbelt`，4 項裡 2 項 FAIL**（包括最基本的
+  「能寫入 workspace 內」）——根因是 macOS 的 `/tmp`/`/var` 是 symlink，
+  `sandbox-exec` 的路徑比對用解析過的真實路徑，原本沒有解析就塞進 profile。
+  已修正（新增 `realpathImpl`，見 MEM-20260821-seatbelt-realpath-fix.md），
+  **但這個修正本身還沒有在真實 Mac 上重新驗證過**——下一步是重跑
+  `pnpm verify:seatbelt` 確認 4 項全過。
+- ✅ **Docker executor**（新增，非原計畫，你確認本機已有可用的 Docker Desktop
+  4.12.0/Engine 20.10.17，足夠涵蓋 `--network none`/bind mount/資源限制這些基本
+  需求，不用管 Big Sur 相容性問題——你既有的安裝不受影響）。同樣純函式
+  `buildDockerArgs()` + injectable spawn 測試。**`pnpm verify:docker` 在真實環境
+  4 項全過，沒有任何問題**——這是目前專案裡少數真正在生產等級環境驗證過的
+  sandbox 隔離機制。
+- ⬜ **雲端 API executor**（E2B）——延後，不是取消。上一輪已查過 SDK 表面用法且
+  確認無 native binary 依賴，這次沒做是範圍考量（沒查到底層 wire protocol，
+  真的要做需要申請帳號才能有意義地驗證）。
+- ⬜ `bwrap`/`Landlock` 的 `SandboxExecutor` 介面仍未定義（這次沒動到），
+  `isAvailable()` 之後在這台（非 Linux 目標）機器上會誠實回傳 `false`。
+- ⬜ `activity_log` 的 `kind: 'sandboxed_execution'` 還沒加——等真的接進
+  `task-graph`（需要 tool calling）才有意義去記錄。
 
 ### Phase 6 — API + 聊天 UI MVP
 **學習重點：** REST + WebSocket，前端用 React/Vite 做出類 WhatsApp 的群組介面（房間列表、選 Agent 看歷史）。
