@@ -6,6 +6,8 @@ export interface SandboxExecutionRequest {
   cwd?: string
   env?: Record<string, string>
   timeoutMs?: number
+  /** Allow outbound network access for operations such as dependency installation. Default false. */
+  allowNetwork?: boolean
 }
 
 export interface SandboxExecutionResult {

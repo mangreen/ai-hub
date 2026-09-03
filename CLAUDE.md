@@ -113,6 +113,18 @@ ai-hub/
 │   │   │   ├── ollama/
 │   │   │   ├── openai-compatible/   # Claude / GPT / Gemini / Grok / NVIDIA build 共用介面
 │   │   │   └── ...
+│   │   ├── orchestrator/       # agent loop/graph/harness 運作策略    
+│   │   │   ├── task-graph/
+│   │   │   ├── coding-agent/   
+│   │   │   └── ...
+│   │   ├── tool/               # 各種 tool
+│   │   │   ├── filesystem/
+│   │   │   ├── shell/   
+│   │   │   └── ...
+│   │   ├── sandbox/            # sandbox
+│   │   │   ├── docker/
+│   │   │   ├── seatbelt/   
+│   │   │   └── ...
 │   │   ├── storage/            # SQLite + 附件檔案儲存
 │   │   ├── channel/            # 外部通訊平台 adapter（whatsapp/messenger/wecom，Phase 8）
 │   │   └── marketplace/        # 插件市場：manifest、動態啟停
@@ -259,6 +271,30 @@ ai-hub/
   `isAvailable()` 之後在這台（非 Linux 目標）機器上會誠實回傳 `false`。
 - ⬜ `activity_log` 的 `kind: 'sandboxed_execution'` 還沒加——等真的接進
   `task-graph`（需要 tool calling）才有意義去記錄。
+
+### Phase 5.6 — Single Coding Agent Loop ✅ 完成（2026-08-24）
+
+**目標：** 先把「一句自然語言 coding request → 真實 workspace source code」跑通，再回頭擴充 Phase 5 的
+multi-agent orchestration。
+
+**交付物：**
+- ✅ `coding-agent` orchestration strategy：新增 optional `OrchestrationStrategy.runTask()`，直接接受 prompt。
+- ✅ `ctx.tool` registry：工具可插拔，不把 filesystem/shell I/O 寫死在 orchestrator。
+- ✅ filesystem tools：`list_files` / `read_file` / `search_files` / `write_file`，workspace path traversal guard。
+- ✅ shell tool：`run_command`，使用 `ctx.sandbox` 執行 executable + argv；可顯式要求 network。
+- ✅ chat event wiring：符合 coding request 的聊天室訊息可直接啟動 coding-agent，不需要先建立 workflow。
+- ✅ model/tool JSON protocol：不依賴任何 provider-specific native tool-calling API。
+- ✅ workflow/activity log 沿用既有 Phase 5 schema，single-agent run 一樣可追蹤。
+- ✅ 保留既有 `task-graph`，沒有破壞 pre-defined DAG execution。
+- ✅ coding-agent integration test 驗證「model → tool → tool → final」閉環。
+
+**刻意不做：**
+- ⬜ manager-agent 自動拆分多個 worker
+- ⬜ parallel worker execution
+- ⬜ patch/merge/conflict orchestration
+- ⬜ cross-agent workspace handoff
+
+這些應等 single-agent loop 能穩定完成「修改 + 測試 + 修錯」後再建立。
 
 ### Phase 6 — API + 聊天 UI MVP
 **學習重點：** REST + WebSocket，前端用 React/Vite 做出類 WhatsApp 的群組介面（房間列表、選 Agent 看歷史）。

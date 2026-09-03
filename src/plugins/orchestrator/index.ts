@@ -1,10 +1,21 @@
 import { Context, Service } from 'cordis'
 import { createWorkflowDefinition, type WorkflowDefinition, type WorkflowRunResult } from './domain.ts'
 
+export interface OrchestrationTaskRequest {
+  roomId: string
+  prompt: string
+  agentId?: string
+  workspaceRoot?: string
+  sandboxExecutor?: string | null
+  maxSteps?: number
+}
+
 export interface OrchestrationStrategy {
   name: string
   /** @throws if the workflow can't be executed by this strategy. */
   runWorkflow(definition: WorkflowDefinition): Promise<WorkflowRunResult>
+  /** Optional prompt-driven entry point for strategies such as coding agents. */
+  runTask?(request: OrchestrationTaskRequest): Promise<WorkflowRunResult>
 }
 
 declare module 'cordis' {
@@ -103,6 +114,18 @@ export class OrchestratorService extends Service {
   getWorkflow(id: string): WorkflowDefinition | undefined {
     const row = this.ctx.storage.get<WorkflowDefinitionRow>('SELECT * FROM workflow_definitions WHERE id = ?', [id])
     return row ? fromRow(row) : undefined
+  }
+
+  /**
+   * Dispatches a free-form user task to a strategy that supports prompt-driven
+   * execution. Workflow creation is intentionally left to that strategy because
+   * the task shape may be dynamic rather than a pre-authored DAG.
+   */
+  async runTask(strategyName: string, request: OrchestrationTaskRequest): Promise<WorkflowRunResult> {
+    const strategy = this.get(strategyName)
+    if (!strategy) throw new Error(`orchestration strategy "${strategyName}" is not registered`)
+    if (!strategy.runTask) throw new Error(`orchestration strategy "${strategyName}" does not support task execution`)
+    return strategy.runTask(request)
   }
 
   /**

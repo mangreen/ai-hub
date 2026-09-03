@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test --experimental-test-coverage \"src/**/*.test.ts\"",
     "verify:seatbelt": "node scripts/verify-seatbelt.ts",
-    "verify:docker": "node scripts/verify-docker.ts"
+    "verify:docker": "node scripts/verify-docker.ts",
+    "verify:coding": "node --env-file-if-exists=.env scripts/verify-real-coding-agent.ts"
   },
   "keywords": [],
   "author": "",

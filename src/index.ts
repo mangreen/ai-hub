@@ -23,6 +23,10 @@ import * as nvidiaNimProvider from './plugins/model/nvidia-nim/index.ts'
 import * as openrouterProvider from './plugins/model/openrouter/index.ts'
 import * as claudeProvider from './plugins/model/claude/index.ts'
 import * as taskGraphStrategy from './plugins/orchestrator/task-graph/index.ts'
+import * as codingAgentStrategy from './plugins/orchestrator/coding-agent/index.ts'
+import { ToolService } from './plugins/tool/index.ts'
+import * as filesystemTools from './plugins/tool/filesystem/index.ts'
+import * as shellTool from './plugins/tool/shell/index.ts'
 import * as seatbeltExecutor from './plugins/sandbox/seatbelt/index.ts'
 import * as dockerExecutor from './plugins/sandbox/docker/index.ts'
 
@@ -35,6 +39,7 @@ ctx.plugin(StorageService)
 ctx.plugin(ChannelService)
 ctx.plugin(OrchestratorService)
 ctx.plugin(SandboxService)
+ctx.plugin(ToolService)
 
 // All seven register regardless of whether their API key env var is set —
 // registration never makes a network call, only .complete() does. An
@@ -53,6 +58,9 @@ ctx.plugin(claudeProvider)
 // framework, and src/plugins/orchestrator/task-graph/index.ts for the
 // execution logic itself.
 ctx.plugin(taskGraphStrategy)
+ctx.plugin(codingAgentStrategy)
+ctx.plugin(filesystemTools)
+ctx.plugin(shellTool)
 
 // Phase 5.5 sandbox executors — both register regardless of platform, same
 // "fail loud on real use, not silent at boot" reasoning as the model
@@ -67,7 +75,7 @@ ctx.plugin(dockerExecutor)
 // git branch phase/0-environment-cordis-basics to view it.
 ctx.plugin({
   name: 'kernel-boot-check',
-  inject: ['chat', 'agent', 'model', 'storage', 'channel', 'orchestrator', 'sandbox'],
+  inject: ['chat', 'agent', 'model', 'storage', 'channel', 'orchestrator', 'sandbox', 'tool'],
   apply(ctx: Context) {
     console.log('--- AI Hub kernel booted ---')
     console.log('services online: chat, agent, model, storage, channel, orchestrator, sandbox')
@@ -75,6 +83,7 @@ ctx.plugin({
     console.log('channel adapters registered:', ctx.channel.list())
     console.log('orchestration strategies registered:', ctx.orchestrator.list())
     console.log('sandbox executors registered:', ctx.sandbox.list())
+    console.log('tools registered:', ctx.tool.list().map((tool: { name: string }) => tool.name))
   },
 })
 

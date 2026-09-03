@@ -34,6 +34,7 @@ export type WorkflowRunStatus = 'succeeded' | 'failed'
 export interface WorkflowRunResult {
   readonly runId: string
   readonly status: WorkflowRunStatus
+  readonly output?: string
 }
 
 function assertNonBlank(value: string, field: string): void {
